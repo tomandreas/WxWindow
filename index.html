@@ -193,6 +193,20 @@ select{font:inherit;font-size:16px;color:inherit}
 .nomsa{margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.3px;border:1px solid currentColor;border-radius:4px;padding:0 4px;line-height:1.5;white-space:nowrap;flex:none}
 .apbtn .nomsa{color:#14100a;background:rgba(0,0,0,.14);border-color:rgba(0,0,0,.45)}
 .apbtn.neutral .nomsa,.srow .nomsa{color:var(--amber);background:transparent;border-color:var(--amber)}
+
+/* v1.7: reorder + data warning */
+.warn.bad{color:#f2a3a6;border-color:#5a2326;background:#1d0e0f}
+.sumhead{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 6px;font-size:11px;color:var(--muted)}
+.sumhead[hidden]{display:none}
+.btn.small{padding:5px 10px;font-size:11.5px;min-height:32px}
+.reorder{position:relative;margin-bottom:12px}
+.rrow{position:relative;display:flex;align-items:center;gap:10px;height:52px;margin-bottom:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 6px 0 12px}
+.rrow .ric{font-family:var(--display);font-size:24px;letter-spacing:.5px;min-width:3.4em;line-height:1}
+.rrow .rnm{flex:1;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grip{flex:none;width:48px;height:44px;display:grid;place-items:center;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--muted);touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.rrow.dragging{z-index:6;border-color:var(--amber);box-shadow:0 10px 26px rgba(0,0,0,.6);background:#161c29}
+.rrow.dragging .grip{cursor:grabbing;color:var(--amber);border-color:var(--amber)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -235,6 +249,8 @@ select{font:inherit;font-size:16px;color:inherit}
   <div class="legend" id="legend"></div>
   <div class="minnote" id="minNote"></div>
   <div class="minnote" id="barNote">Top strip: the forecast at that time. Wide bar: the result if your ETA is then. Bracket: ETA ±1 h; faint line: the +75kg fuel window.</div>
+  <div class="warn bad" id="minMissing" hidden></div>
+  <div class="sumhead" id="sumHead" hidden><span>Aerodromes</span><button class="btn small" id="reorderBtn">Reorder</button></div>
   <div class="summary" id="summary"></div>
   <div id="cards"></div>
 
@@ -244,10 +260,12 @@ select{font:inherit;font-size:16px;color:inherit}
     <button class="btn" id="addBtn">Add</button>
   </div>
 
-  <div class="version">TAF Timeline v1.6</div>
+  <div class="version">TAF Timeline v1.7</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<div class="sr" id="sr" role="status" aria-live="polite"></div>
 
+<script src="minima.js"></script>
 <script>
 /* TAF Timeline core: parser, most-limiting evaluation, EASA colour rules.
    Plain script: defines window.TAFCore (or global in Node). */
@@ -681,13 +699,16 @@ select{font:inherit;font-size:16px;color:inherit}
   else root.TAFCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
-const AERO_DATA = {"airac":"2026-09-03","airacMs":1788393600000,"ap":{"ENAL":{"n":"Ålesund/Vigra","a":[{"l":"RNP Y 06","t":"LPV","r":"06","d":215,"v":550,"k":10},{"l":"ILS 24","t":"ILS","r":"24","d":205,"v":550,"k":0},{"l":"RNP Z 24","t":"LPV","r":"24","d":205,"v":550,"k":11}],"m":7200,"e":70},"ENAT":{"n":"Alta","a":[{"l":"ILS 11","t":"ILS","r":"11","d":346,"v":550,"k":0},{"l":"RNP Z 11","t":"LPV","r":"11","d":925,"v":550,"k":11}],"m":5500,"e":10},"ENBL":{"n":"Glomfjord","a":[{"l":"RNP 07","t":"LPV","r":"07","d":361,"v":550,"k":10},{"l":"RNP Y 25","t":"LPV","r":"25","d":1125,"v":550,"k":10}],"m":7700,"e":1045},"ENBN":{"n":"Brønnøysund","a":[{"l":"RNP X 03","t":"LPV","r":"03","d":246,"v":550,"k":12}],"m":5200,"e":26},"ENBO":{"n":"Bodø","a":[{"l":"ILS Y 07 (H)","t":"ILS","r":"07","d":208,"v":550,"k":0},{"l":"ILS Z 07","t":"ILS","r":"07","d":256,"v":550,"k":1},{"l":"RNP X 07","t":"LPV","r":"07","d":328,"v":550,"k":12},{"l":"ILS 25","t":"ILS","r":"25","d":300,"v":550,"k":0}],"m":7300,"e":44},"ENBR":{"n":"Bergen/Flesland","a":[{"l":"ILS Y 17 (H)","t":"ILS","r":"17","d":200,"v":550,"k":0,"o":166},{"l":"ILS W 17","t":"ILS","r":"17","d":200,"v":550,"k":3,"n":"CAT I figure","o":181},{"l":"RNP Z 17","t":"LPV","r":"17","d":234,"v":550,"k":11},{"l":"ILS Y 35 (H)","t":"ILS","r":"35","d":200,"v":550,"k":0},{"l":"ILS W 35","t":"ILS","r":"35","d":200,"v":550,"k":3,"o":197},{"l":"RNP Z 35","t":"LPV","r":"35","d":200,"v":550,"k":11,"o":197}],"m":5500,"e":171},"ENBS":{"n":"Båtsfjord","a":[{"l":"RNP 03","t":"LPV","r":"03","d":615,"v":550,"k":10},{"l":"RNP 21","t":"LPV","r":"21","d":281,"v":550,"k":10}],"m":7000,"e":490},"ENBV":{"n":"Berlevåg","a":[{"l":"RNP 06","t":"LPV","r":"06","d":619,"v":550,"k":10},{"l":"RNP 24","t":"LPV","r":"24","d":417,"v":550,"k":10}],"m":7000,"e":43},"ENCN":{"n":"Kristiansand/Kjevik","a":[{"l":"ILS 03","t":"ILS","r":"03","d":200,"v":550,"k":0,"o":160},{"l":"RNP Z 03","t":"LPV","r":"03","d":200,"v":550,"k":11,"o":160},{"l":"ILS 21","t":"ILS","r":"21","d":200,"v":550,"k":0,"o":166},{"l":"RNP Z 21","t":"LPV","r":"21","d":200,"v":550,"k":11,"o":164}],"m":3900,"e":57},"ENDU":{"n":"Bardufoss","a":[{"l":"RNP 10","t":"LPV","r":"10","d":794,"v":550,"k":10},{"l":"ILS 28","t":"ILS","r":"28","d":440,"v":550,"k":0},{"l":"RNP 28","t":"LPV","r":"28","d":436,"v":550,"k":10}],"m":7100,"e":254},"ENEV":{"n":"Harstad-Narvik/Evenes","a":[{"l":"ILS 17","t":"ILS","r":"17","d":326,"v":550,"k":0},{"l":"RNP Z 17","t":"LPV","r":"17","d":224,"v":550,"k":11}],"m":7300,"e":85},"ENFL":{"n":"Florø","a":[{"l":"RNP Y 07","t":"LPV","r":"07","d":303,"v":550,"k":10}],"m":5700,"e":37},"ENGM":{"n":"Oslo/Gardermoen","a":[{"l":"ILS Y 01R","t":"ILS","r":"01R","d":200,"v":550,"k":0,"n":"CAT I figure","o":179},{"l":"ILS Y 01L","t":"ILS","r":"01L","d":200,"v":550,"k":0,"n":"CAT I figure","o":167},{"l":"RNP Z 01L","t":"LPV","r":"01L","d":200,"v":550,"k":11,"o":167},{"l":"RNP Z 01R","t":"LPV","r":"01R","d":200,"v":550,"k":11,"o":179},{"l":"ILS Y 19R","t":"ILS","r":"19R","d":200,"v":550,"k":0,"n":"CAT I figure","o":148},{"l":"ILS Y 19L","t":"ILS","r":"19L","d":200,"v":550,"k":0,"n":"CAT I figure","o":137},{"l":"RNP Z 19L","t":"LPV","r":"19L","d":200,"v":550,"k":11,"o":139},{"l":"RNP Z 19R","t":"LPV","r":"19R","d":200,"v":550,"k":11,"o":161}],"m":3900,"e":682},"ENHD":{"n":"Haugesund","a":[{"l":"ILS 13","t":"ILS","r":"13","d":200,"v":550,"k":0,"o":176},{"l":"RNP Z 13","t":"LPV","r":"13","d":200,"v":550,"k":11,"o":175},{"l":"RNP Z 31","t":"LPV","r":"31","d":223,"v":550,"k":11}],"m":5000,"e":87},"ENHF":{"n":"Hammerfest","a":[{"l":"RNP Z 04","t":"LPV","r":"04","d":924,"v":550,"k":11},{"l":"RNP Z 22","t":"LPV","r":"22","d":1023,"v":550,"k":11}],"m":5000,"e":263},"ENHK":{"n":"Hasvik","a":[{"l":"RNP 11","t":"LPV","r":"11","d":240,"v":550,"k":10},{"l":"RNP 29","t":"LPV","r":"29","d":288,"v":550,"k":10}],"m":5000,"e":23},"ENKB":{"n":"Kristiansund/Kvernberget","a":[{"l":"ILS Y 07 (H)","t":"ILS","r":"07","d":250,"v":550,"k":0},{"l":"ILS Z 07","t":"ILS","r":"07","d":250,"v":550,"k":1},{"l":"ILS X 07","t":"ILS","r":"07","d":250,"v":550,"k":2},{"l":"RNP Z 07","t":"LPV","r":"07","d":238,"v":550,"k":11},{"l":"RNP Z 25","t":"LPV","r":"25","d":354,"v":550,"k":11}],"m":7200,"e":205},"ENKR":{"n":"Kirkenes/Høybuktmoen","a":[{"l":"RNP Z 05","t":"LPV","r":"05","d":720,"v":550,"k":11},{"l":"ILS 23","t":"ILS","r":"23","d":250,"v":550,"k":0},{"l":"RNP Z 23","t":"LPV","r":"23","d":400,"v":550,"k":11}],"m":3200,"e":285},"ENLK":{"n":"Leknes","a":[{"l":"RNP 20","t":"LPV","r":"20","d":319,"v":550,"k":10}],"m":4800,"e":80},"ENMH":{"n":"Mehamn","a":[{"l":"RNP 17","t":"LPV","r":"17","d":551,"v":550,"k":10},{"l":"RNP 35","t":"LPV","r":"35","d":918,"v":550,"k":10}],"m":4000,"e":43},"ENML":{"n":"Molde/Årø","a":[{"l":"ILS X 07","t":"ILS","r":"07","d":415,"v":550,"k":2},{"l":"ILS W 07","t":"ILS","r":"07","d":415,"v":550,"k":3},{"l":"RNP Z 07","t":"LPV","r":"07","d":400,"v":550,"k":11},{"l":"RNP Z 25","t":"LPV","r":"25","d":660,"v":550,"k":11}],"m":7500,"e":10},"ENMS":{"n":"Mosjøen/Kjærstad","a":[{"l":"RNP 33","t":"LPV","r":"33","d":870,"v":550,"k":10}],"m":7000,"e":241},"ENNA":{"n":"Lakselv/Banak","a":[{"l":"RNP X 16","t":"LPV","r":"16","d":250,"v":550,"k":12},{"l":"ILS 34","t":"ILS","r":"34","d":261,"v":550,"k":0},{"l":"RNP X 34","t":"LPV","r":"34","d":287,"v":550,"k":12}],"m":4800,"e":26},"ENNM":{"n":"Namsos","a":[{"l":"RNP 07","t":"LPV","r":"07","d":763,"v":550,"k":10},{"l":"RNP 25","t":"LPV","r":"25","d":1012,"v":550,"k":10}],"m":4900,"e":8},"ENOL":{"n":"Ørland","a":[{"l":"ILS 15","t":"ILS","r":"15","d":200,"v":550,"k":0,"o":185},{"l":"ILS 33","t":"ILS","r":"33","d":200,"v":550,"k":0,"o":195},{"l":"RNP Z 33","t":"LPV","r":"33","d":200,"v":550,"k":11,"o":193}],"m":3900,"e":30},"ENRM":{"n":"Rørvik/Ryum","a":[{"l":"RNP 04","t":"LPV","r":"04","d":279,"v":550,"k":10},{"l":"RNP 22","t":"LPV","r":"22","d":473,"v":550,"k":10}],"m":4600,"e":15},"ENRO":{"n":"Røros","a":[{"l":"RNP Z 13","t":"LPV","r":"13","d":600,"v":550,"k":11},{"l":"ILS Y 31","t":"ILS","r":"31","d":503,"v":550,"k":0},{"l":"ILS Z 31","t":"ILS","r":"31","d":503,"v":550,"k":1}],"m":6900,"e":2054},"ENRS":{"n":"Røst","a":[{"l":"RNP 02","t":"LPV","r":"02","d":241,"v":550,"k":10},{"l":"RNP 20","t":"LPV","r":"20","d":243,"v":550,"k":10}],"m":4500,"e":9},"ENRY":{"n":"Rygge","a":[{"l":"RNP 12","t":"LPV","r":"12","d":242,"v":550,"k":10},{"l":"ILS 30","t":"ILS","r":"30","d":201,"v":550,"k":0},{"l":"RNP 30","t":"LPV","r":"30","d":231,"v":550,"k":10}],"m":4300,"e":174},"ENSB":{"n":"Svalbard/Longyear","a":[{"l":"ILS 09","t":"ILS","r":"09","d":415,"v":550,"k":0}],"m":5100,"e":94,"iso":1},"ENSG":{"n":"Sogndal/Haukåsen","a":[{"l":"ILS 24","t":"ILS","r":"24","d":890,"v":550,"k":0},{"l":"RNP Z 24","t":"LPV","r":"24","d":1357,"v":550,"k":11}],"m":9000,"e":1633},"ENSH":{"n":"Svolvær/Helle","a":[{"l":"RNP Y 36","t":"LPV","r":"36","d":1151,"v":550,"k":10}],"m":5500,"e":29},"ENSK":{"n":"Stokmarknes/Skagen","a":[{"l":"RNP 08","t":"LPV","r":"08","d":251,"v":550,"k":10}],"m":5400,"e":14},"ENSO":{"n":"Stord/Sørstokken","a":[{"l":"RNP 14","t":"LPV","r":"14","d":231,"v":550,"k":10},{"l":"RNP 32","t":"LPV","r":"32","d":262,"v":550,"k":10}],"m":6500,"e":161},"ENSS":{"n":"Vardø/Svartnes","a":[{"l":"RNP 15","t":"LPV","r":"15","d":482,"v":550,"k":10},{"l":"RNP Z 33","t":"LPV","r":"33","d":252,"v":550,"k":11}],"m":3200,"e":42},"ENST":{"n":"Sandnessjøen/Stokka","a":[{"l":"RNP Y 02","t":"LPV","r":"02","d":371,"v":550,"k":10},{"l":"RNP Y 20","t":"LPV","r":"20","d":202,"v":550,"k":10}],"m":5800,"e":58},"ENTC":{"n":"Tromsø/Langnes","a":[{"l":"ILS Y 18","t":"ILS","r":"18","d":274,"v":550,"k":0},{"l":"ILS Z 18","t":"ILS","r":"18","d":274,"v":550,"k":1},{"l":"ILS Y 36","t":"ILS","r":"36","d":211,"v":550,"k":0},{"l":"ILS Z 36","t":"ILS","r":"36","d":211,"v":550,"k":1}],"m":7100,"e":32},"ENTO":{"n":"Sandefjord/Torp","a":[{"l":"ILS 17","t":"ILS","r":"17","d":200,"v":550,"k":0,"n":"CAT I figure","o":144},{"l":"RNP Z 17","t":"LPV","r":"17","d":239,"v":550,"k":11},{"l":"ILS 35","t":"ILS","r":"35","d":244,"v":550,"k":0},{"l":"RNP Z 35","t":"LPV","r":"35","d":286,"v":550,"k":11}],"m":4300,"e":286},"ENVA":{"n":"Trondheim/Værnes","a":[{"l":"ILS 09","t":"ILS","r":"09","d":200,"v":550,"k":0,"o":197},{"l":"RNP Z 09","t":"LPV","r":"09","d":284,"v":550,"k":11},{"l":"ILS 27","t":"ILS","r":"27","d":222,"v":550,"k":0},{"l":"RNP Z 27","t":"LPV","r":"27","d":200,"v":550,"k":11,"o":198}],"m":5800,"e":64},"ENZV":{"n":"Stavanger/Sola","a":[{"l":"RNP Z 10","t":"LPV","r":"10","d":200,"v":550,"k":11,"o":182},{"l":"ILS Y 18 (H)","t":"ILS","r":"18","d":200,"v":550,"k":0,"o":159},{"l":"ILS Z 18","t":"ILS","r":"18","d":200,"v":550,"k":1,"n":"CAT I figure","o":159},{"l":"RNP Z 18","t":"LPV","r":"18","d":200,"v":550,"k":11,"o":179},{"l":"RNP 28","t":"LPV","r":"28","d":311,"v":550,"k":10},{"l":"ILS Y 36 (H)","t":"ILS","r":"36","d":211,"v":550,"k":0},{"l":"ILS Z 36","t":"ILS","r":"36","d":211,"v":550,"k":1},{"l":"RNP Z 36","t":"LPV","r":"36","d":228,"v":550,"k":11}],"m":4800,"e":30}}};
 </script>
 <script>
 (function () {
   'use strict';
   const C = window.TAFCore;
-  const VERSION = '1.6';
+  // minima.js holds the approach minima and MSA. If it did not load, run without minima and say so.
+  let dataMissing = false, dataSchemaBad = false;
+  if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
+  else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
+  const VERSION = '1.7';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -713,7 +734,7 @@ const AERO_DATA = {"airac":"2026-09-03","airacMs":1788393600000,"ap":{"ENAL":{"n
   let offshore = load(LS.off, {});           // { ICAO: true } offshore installation (never two independent approaches)
   const pin = {};                            // icao -> approach id pinned this session
   const disc = {};                           // icao -> { key: raw TAF, idx: [group indexes] } PROB30 groups disregarded
-  const ui = { menu: null, edit: null, draft: null };
+  const ui = { menu: null, edit: null, draft: null, reorder: false };
   const flight = { dep: null, ft: null, eta: null, set: new Set() };
   const inspect = {};                        // icao -> time being inspected
 
@@ -1296,7 +1317,7 @@ const AERO_DATA = {"airac":"2026-09-03","airacMs":1788393600000,"ap":{"ENAL":{"n
   /* ---------- summary strip ---------- */
   function renderSummary() {
     const el = $('summary');
-    if (!list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
+    if (ui.reorder || !list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
     const T = dispTime();
     el.innerHTML = list.map(id => {
       const m = model[id];
@@ -1398,6 +1419,10 @@ const AERO_DATA = {"airac":"2026-09-03","airacMs":1788393600000,"ap":{"ENAL":{"n
   function render() {
     for (const id of list) computeStation(id);
     computeAxis(); computeGrids();
+    if (list.length < 2) ui.reorder = false;
+    $('sumHead').hidden = list.length < 2 || !Object.keys(data.stations).length;
+    $('reorderBtn').textContent = ui.reorder ? 'Done' : 'Reorder';
+    $('reorderBtn').classList.toggle('primary', ui.reorder);
     const cards = $('cards');
     if (!list.length) {
       cards.innerHTML = '<div class="empty">No aerodromes yet. Add one below.</div>';
@@ -1405,6 +1430,8 @@ const AERO_DATA = {"airac":"2026-09-03","airacMs":1788393600000,"ap":{"ENAL":{"n
       cards.innerHTML = '<div class="empty">No weather loaded yet.<br><br><button class="btn primary" id="emptyRefresh">Refresh</button> <button class="btn" id="demoBtn">Load sample data</button></div>';
       $('emptyRefresh').onclick = refresh;
       $('demoBtn').onclick = () => { data = demoData(); list = Object.keys(data.stations); save(LS.list, list); render(); };
+    } else if (ui.reorder) {
+      cards.innerHTML = reorderHTML();
     } else {
       cards.innerHTML = list.map(cardHTML).join('');
       cards.querySelectorAll('canvas').forEach(cv => {
@@ -1473,6 +1500,7 @@ const AERO_DATA = {"airac":"2026-09-03","airacMs":1788393600000,"ap":{"ENAL":{"n
   });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && ui.menu) { const prev = ui.menu; ui.menu = null; updateCardDynamic(prev); }
+    else if (e.key === 'Escape' && ui.reorder && !drag) { ui.reorder = false; render(); }
   });
 
   function renderAge() {
@@ -1485,6 +1513,9 @@ const AERO_DATA = {"airac":"2026-09-03","airacMs":1788393600000,"ap":{"ENAL":{"n
   function renderMinNote() {
     const cycles = Math.floor((Date.now() - AERO_DATA.airacMs) / (28 * 86400e3));
     const el = $('minNote');
+    $('minMissing').hidden = !(dataMissing || dataSchemaBad);
+    $('minMissing').textContent = dataMissing ? 'minima.js did not load, so there are no approach minima or MSA. Check that minima.js is in the repo next to index.html.' : 'minima.js is not the version this page expects. Replace it with the matching file.';
+    if (dataMissing) { el.textContent = 'No approach minima loaded.'; el.className = 'minnote stale'; return; }
     el.textContent = 'Approach minima and MSA: AIP, AIRAC ' + AERO_DATA.airac + ' (DH floor 200 ft, RVR 550 m, highest MSA).' + (cycles >= 1 ? ' ' + cycles + ' AIRAC cycle' + (cycles > 1 ? 's' : '') + ' old, verify.' : '');
     el.className = 'minnote' + (cycles >= 1 ? ' stale' : '');
   }
@@ -1498,6 +1529,94 @@ const AERO_DATA = {"airac":"2026-09-03","airacMs":1788393600000,"ap":{"ENAL":{"n
       '<span>' + WARN + 'User entered</span>';
     $('mNote').textContent = 'DH and RVR come from the approach data (or your custom entry). The ceiling for no alternate is the highest MSA minus AD elevation (AIP), never below DH + 400 ft. Without MSA data the ' + cfg.greenCig + ' ft proxy applies and the aerodrome shows NO MSA. DH 250 ft or more also needs a ceiling at or above DH for one alternate.';
   }
+
+  /* ---------- reorder aerodromes (drag handles) ---------- */
+  const GRIP = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>';
+  function reorderHTML() {
+    let h = '<div class="reorder" id="reorderList"><p class="note">Drag the handle on the right to change the order. With a handle selected, the up and down arrow keys move it. Tap Done when finished.</p>';
+    for (const id of list) {
+      const nm = (data.stations[id] && data.stations[id].name) || (AERO_DATA.ap[id] && AERO_DATA.ap[id].n) || '';
+      h += '<div class="rrow" data-id="' + id + '"><span class="ric">' + id + '</span><span class="rnm">' + esc(nm) + '</span>' +
+        '<button class="grip" aria-label="Move ' + id + '. Use the up and down arrow keys, or drag.">' + GRIP + '</button></div>';
+    }
+    return h + '</div>';
+  }
+  let drag = null;
+  function commitOrder() {
+    const ids = [...$('cards').querySelectorAll('.rrow')].map(r => r.dataset.id);
+    if (ids.length === list.length && ids.join() !== list.join()) { list = ids; save(LS.list, list); }
+  }
+  function updateDrag() {
+    const row = drag.row;
+    for (let guard = 0; guard < 60; guard++) {
+      const dy = drag.lastY - drag.startY + (window.scrollY - drag.scroll0);
+      const center = row.offsetTop + row.offsetHeight / 2 + dy;
+      const next = row.nextElementSibling, prev = row.previousElementSibling;
+      if (next && next.classList.contains('rrow') && center > next.offsetTop + next.offsetHeight / 2) {
+        const before = row.offsetTop; row.parentNode.insertBefore(next, row); drag.startY += row.offsetTop - before; continue;
+      }
+      if (prev && prev.classList.contains('rrow') && center < prev.offsetTop + prev.offsetHeight / 2) {
+        const before = row.offsetTop; row.parentNode.insertBefore(prev, row.nextSibling); drag.startY += row.offsetTop - before; continue;
+      }
+      // keep the dragged row inside the list so the page cannot be scrolled past it
+      const rows = row.parentNode.querySelectorAll('.rrow'), last = rows[rows.length - 1];
+      const lo = rows[0].offsetTop - row.offsetTop, hi = last.offsetTop + last.offsetHeight - row.offsetHeight - row.offsetTop;
+      row.style.transform = 'translateY(' + Math.max(lo, Math.min(hi, dy)) + 'px)';
+      break;
+    }
+  }
+  function autoScrollLoop() {
+    if (!drag) return;
+    const fl = document.querySelector('.flight');
+    const top = (fl ? fl.getBoundingClientRect().bottom : 0) + 28, bottom = window.innerHeight - 70;
+    let v = 0;
+    if (drag.lastY < top) v = -Math.min(18, (top - drag.lastY) / 4 + 4);
+    else if (drag.lastY > bottom) v = Math.min(18, (drag.lastY - bottom) / 4 + 4);
+    if (v) { window.scrollBy(0, v); updateDrag(); }
+    drag.raf = requestAnimationFrame(autoScrollLoop);
+  }
+  function onDragMove(e) {
+    if (!drag || e.pointerId !== drag.pid) return;
+    drag.lastY = e.clientY; updateDrag();
+  }
+  function endDrag(e) {
+    if (!drag || (e && e.pointerId !== drag.pid)) return;
+    const d = drag; drag = null;
+    cancelAnimationFrame(d.raf);
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', endDrag);
+    document.removeEventListener('pointercancel', endDrag);
+    try { d.grip.releasePointerCapture(d.pid); } catch (_) { /* already released */ }
+    d.row.style.transform = ''; d.row.classList.remove('dragging');
+    commitOrder();
+  }
+  $('cards').addEventListener('pointerdown', e => {
+    const grip = e.target.closest('.grip');
+    if (!grip || !ui.reorder || drag) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    const row = grip.closest('.rrow');
+    drag = { row, grip, pid: e.pointerId, startY: e.clientY, lastY: e.clientY, scroll0: window.scrollY, raf: 0 };
+    try { grip.setPointerCapture(e.pointerId); } catch (_) { /* capture not supported */ }
+    row.classList.add('dragging');
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', endDrag);
+    document.addEventListener('pointercancel', endDrag);
+    drag.raf = requestAnimationFrame(autoScrollLoop);
+  });
+  $('cards').addEventListener('keydown', e => {
+    const grip = e.target.closest && e.target.closest('.grip');
+    if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    const row = grip.closest('.rrow'), up = e.key === 'ArrowUp';
+    const sib = up ? row.previousElementSibling : row.nextElementSibling;
+    if (!sib || !sib.classList.contains('rrow')) return;
+    if (up) row.parentNode.insertBefore(row, sib); else row.parentNode.insertBefore(sib, row);
+    grip.focus(); commitOrder();
+    const pos = [...row.parentNode.querySelectorAll('.rrow')].indexOf(row) + 1;
+    $('sr').textContent = row.dataset.id + ' moved to position ' + pos + ' of ' + list.length;
+  });
+  $('reorderBtn').addEventListener('click', () => { ui.reorder = !ui.reorder; ui.menu = null; render(); });
 
   /* ---------- add / settings ---------- */
   function addStation() {
