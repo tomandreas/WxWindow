@@ -248,6 +248,7 @@ select{font:inherit;font-size:16px;color:inherit}
 
   <div class="legend" id="legend"></div>
   <div class="minnote" id="minNote"></div>
+  <div class="minnote" id="airacNote"></div>
   <div class="minnote" id="barNote">Top strip: the forecast at that time. Wide bar: the result if your ETA is then. Bracket: ETA ±1 h; faint line: the +75kg fuel window.</div>
   <div class="warn bad" id="minMissing" hidden></div>
   <div class="sumhead" id="sumHead" hidden><span>Aerodromes</span><button class="btn small" id="reorderBtn">Reorder</button></div>
@@ -260,7 +261,7 @@ select{font:inherit;font-size:16px;color:inherit}
     <button class="btn" id="addBtn">Add</button>
   </div>
 
-  <div class="version">TAF Timeline v1.7</div>
+  <div class="version">TAF Timeline v1.9</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="sr" role="status" aria-live="polite"></div>
@@ -404,7 +405,8 @@ select{font:inherit;font-size:16px;color:inherit}
   }
 
   // Auto pick: drop approaches outside the wind limits, take the runway with the most headwind
-  // (within 1 kt counts as equal), then ILS Y > ILS Z > others > LPV (rank k), then lowest DH.
+  // (within 1 kt counts as equal), then the lowest minima (DH/MDH, then RVR), and only if those are
+  // equal the type rank k (ILS Y, ILS Z, ..., LPV, LOC).
   function pickApproach(state, pool, cfg) {
     const info = pool.map(ap => ({ ap, wc: windCheck(state.wind, ap, cfg) }));
     const usable = info.filter(x => x.wc.ok);
@@ -415,7 +417,7 @@ select{font:inherit;font-size:16px;color:inherit}
     const withRwy = usable.filter(x => x.ap.r);
     const maxHw = withRwy.length ? Math.max.apply(null, withRwy.map(x => x.wc.hw)) : 0;
     const tie = usable.filter(x => !x.ap.r || x.wc.hw >= maxHw - 1);
-    tie.sort((a, b) => (a.ap.k - b.ap.k) || (a.ap.d - b.ap.d) || (b.wc.hw - a.wc.hw));
+    tie.sort((a, b) => (a.ap.d - b.ap.d) || (a.ap.v - b.ap.v) || (a.ap.k - b.ap.k) || (b.wc.hw - a.wc.hw));
     return { ap: tie[0].ap, wc: tie[0].wc, none: false };
   }
 
@@ -708,12 +710,14 @@ select{font:inherit;font-size:16px;color:inherit}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.7';
+  const VERSION = '1.9';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
   const $ = id => document.getElementById(id);
   const TYPES = ['ILS', 'LOC', 'VOR', 'NDB', 'LNAV', 'LNAV/VNAV', 'LPV', 'ARA', 'Other'];
+  const TWO_D = ['LOC', 'VOR', 'NDB', 'LNAV'];   // no vertical guidance: RVR/VIS not lower than 800 m (AMC6 CAT.OP.MPA.110)
+  const MIN_2D = 800;
   const WARN = '<svg class="warnico" data-act="warn" width="15" height="15" viewBox="0 0 24 24" role="img" aria-label="User entered, not from AIP"><path d="M12 2.5 22.5 20.5H1.5Z" fill="#14100a" stroke="#e8a020" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v5.5" stroke="#e8a020" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="#e8a020"/></svg>';
   const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
 
@@ -899,7 +903,10 @@ select{font:inherit;font-size:16px;color:inherit}
   function approachesFor(icao) {
     const d = AERO_DATA.ap[icao];
     const pub = d ? d.a.map(a => Object.assign({ id: icao + ':' + a.l, custom: false }, a)) : [];
-    const cus = (custom[icao] || []).map(c => ({ id: 'c:' + icao + ':' + c.id, cid: c.id, l: 'Custom ' + c.t + (c.r ? ' ' + c.r : ''), t: c.t, r: c.r || '', d: c.dh, v: c.rvr, k: 99, custom: true }));
+    const cus = (custom[icao] || []).map(c => {
+      const eff = TWO_D.includes(c.t) ? Math.max(c.rvr, MIN_2D) : c.rvr;   // also covers entries saved before this rule
+      return { id: 'c:' + icao + ':' + c.id, cid: c.id, l: 'Custom ' + c.t + (c.r ? ' ' + c.r : ''), t: c.t, r: c.r || '', d: c.dh, v: eff, vRaw: eff !== c.rvr ? c.rvr : null, k: 99, custom: true };
+    });
     return { pub, cus, all: pub.concat(cus) };
   }
   const rwyNum = a => parseInt(a.r, 10) || 99;
@@ -1164,15 +1171,15 @@ select{font:inherit;font-size:16px;color:inherit}
     const style = neutral ? '' : ' style="background:' + COLORS[d.cat] + '"';
     return '<button class="apbtn' + (neutral ? ' neutral' : '') + '"' + style + ' data-act="menu" aria-haspopup="true" aria-expanded="' + (ui.menu === m.id) + '">' +
       '<span class="abody"><span class="al">' + esc(ap.l) + (ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
-      '<span class="as">' + esc(typeTxt(ap)) + ' · DH ' + ap.d + ' · RVR ' + ap.v + ' · ' + (pinned ? 'PINNED' : 'AUTO') + (etaSet ? '' : ' · set ETA for the result') + '</span></span>' + CHEV + '</button>';
+      '<span class="as">' + esc(typeTxt(ap)) + ' · DH ' + ap.d + ' · RVR ' + ap.v + (ap.lt ? ' ' + ap.lt : '') + ' · ' + (pinned ? 'PINNED' : 'AUTO') + (etaSet ? '' : ' · set ETA for the result') + '</span></span>' + CHEV + '</button>';
   }
   function menuHTML(m, T) {
     const pinId = selPin(m);
-    let h = '<div class="aprow auto' + (!pinId ? ' sel' : '') + '" role="button" tabindex="0" data-act="auto"><div class="body"><div class="t1">Auto</div><div class="t2">Best by wind. ILS Y, then ILS Z, then LPV.</div></div></div>';
+    let h = '<div class="aprow auto' + (!pinId ? ' sel' : '') + '" role="button" tabindex="0" data-act="auto"><div class="body"><div class="t1">Auto</div><div class="t2">Runway by wind, then the lowest minima on it.</div></div></div>';
     const rows = m.ap.all.slice().sort((a, b) => (a.custom - b.custom) || (rwyNum(a) - rwyNum(b)) || (a.k - b.k));
     for (const ap of rows) {
       const st = rowStatus(m, ap, T);
-      const sub = typeTxt(ap) + ' · DH ' + ap.d + ' · RVR ' + ap.v + (ap.o ? ' · OCH ' + ap.o : '') + (ap.n ? ' · ' + ap.n : '');
+      const sub = typeTxt(ap) + ' · DH ' + ap.d + ' · RVR ' + ap.v + (ap.lt ? ' ' + ap.lt : '') + (ap.vRaw ? ' (2D minimum, you entered ' + ap.vRaw + ')' : '') + (ap.o ? ' · OCH ' + ap.o : '') + (ap.n ? ' · ' + ap.n : '');
       h += '<div class="aprow' + (pinId === ap.id ? ' sel' : '') + '" role="button" tabindex="0" data-act="pin" data-ap="' + esc(ap.id) + '">' +
         '<span class="sw2" style="background:' + COLORS[st.cat] + '"></span>' +
         '<div class="body"><div class="t1">' + esc(ap.l) + (ap.custom ? WARN : '') + '</div><div class="t2">' + esc(sub) + '</div></div>' +
@@ -1207,7 +1214,7 @@ select{font:inherit;font-size:16px;color:inherit}
       (noData ? '<label class="chk"><input type="checkbox" data-f="off"' + (d.off ? ' checked' : '') + '><span>Offshore installation. It never has two independent approaches, so +75kg fuel is not possible.</span></label>' : '') +
       '<div class="erow"><button class="btn primary" data-act="savecustom">Save</button><button class="btn" data-act="cancelcustom">Cancel</button>' +
       (ui.edit.cid ? '<button class="btn danger" data-act="delcustom">Delete</button>' : '') + '</div>' +
-      '<p class="note">User entered, not from AIP. Stored on this device only. ' + (m && m.ap.pub.length ? 'Once saved it is selected here; tap Auto in the approach list to go back.' : 'Used to colour this aerodrome.') + ' A runway lets the wind limits apply.</p></div>';
+      '<p class="note">User entered, not from AIP. Stored on this device only. ' + (m && m.ap.pub.length ? 'Once saved it is selected here; tap Auto in the approach list to go back.' : 'Used to colour this aerodrome.') + ' A runway lets the wind limits apply. For 2D approaches (' + TWO_D.join(', ') + ') the RVR is never below ' + MIN_2D + ' m.</p></div>';
   }
   function openEditor(icao, cid) {
     ui.menu = null;
@@ -1232,9 +1239,12 @@ select{font:inherit;font-size:16px;color:inherit}
       if (!mm || +mm[1] < 1 || +mm[1] > 36) { toast('Runway should be 01 to 36, for example 04 or 22L.'); return; }
       r = pad(+mm[1]) + mm[2];
     }
-    const dh = Math.round(+d.dh), rvr = Math.round(+d.rvr);
+    const dh = Math.round(+d.dh);
+    let rvr = Math.round(+d.rvr);
     if (d.dh === '' || !isFinite(dh) || dh < 0 || dh > 5000) { toast('Enter DH/MDH in feet (0 to 5000).'); return; }
     if (d.rvr === '' || !isFinite(rvr) || rvr < 0 || rvr > 10000) { toast('Enter RVR/VIS in metres (0 to 10000).'); return; }
+    let raised = false;
+    if (TWO_D.includes(d.t) && rvr < MIN_2D) { rvr = MIN_2D; raised = true; }
     const arr = custom[icao] = custom[icao] || [];
     let newId = cid;
     if (cid) { const x = arr.find(a => a.id === cid); if (x) Object.assign(x, { t: d.t, r, dh, rvr }); }
@@ -1244,6 +1254,7 @@ select{font:inherit;font-size:16px;color:inherit}
     if (AERO_DATA.ap[icao]) pin[icao] = 'c:' + icao + ':' + newId;   // use it straight away at aerodromes with published data
     ui.edit = null; ui.draft = null;
     render();
+    if (raised) toast('RVR raised to ' + MIN_2D + ' m. Minima on 2D approaches (' + TWO_D.join(', ') + ') are not lower than ' + MIN_2D + ' m.', 6500);
   }
   function deleteCustom() {
     const { icao, cid } = ui.edit;
@@ -1510,15 +1521,33 @@ select{font:inherit;font-size:16px;color:inherit}
     el.textContent = 'Fetched ' + ago(data.fetchedAt);
     el.className = 'age' + (Date.now() - data.fetchedAt > 30 * M ? ' stale' : '');
   }
+  const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+  const fmtD = s => { const [y, m, d] = s.split('-'); return d + ' ' + MONTHS[+m - 1] + ' ' + y; };
+  const dayMs = s => Date.parse(s + 'T00:00:00Z');
+  // Is the data in minima.js still the edition in force? Dates come from Avinor's AIRAC plan (may change).
+  function airacStatus() {
+    const list = (AERO_DATA.airacList || []).slice().sort((x, y) => (x.e < y.e ? -1 : 1));
+    if (!list.length) return { text: 'AIRAC dates are not in minima.js, so the data age cannot be checked.', warn: false };
+    const now = Date.now(), ed = AERO_DATA.airac;
+    const cur = list.filter(x => dayMs(x.e) <= now).pop();
+    const next = list.find(x => dayMs(x.e) > now);
+    if (cur && cur.e > ed) return { text: 'AIP changed ' + fmtD(cur.e) + ' (AMDT ' + cur.a + '). These minima are from AIRAC ' + ed + ' and may be out of date. Replace minima.js.', warn: true };
+    if (next && now >= dayMs(next.p)) return { text: 'AIP change ' + fmtD(next.e) + ' (AMDT ' + next.a + ') was published ' + fmtD(next.p) + '. Update minima.js before it takes effect.', warn: true };
+    if (next) return { text: 'Current. Next AIP change ' + fmtD(next.e) + ', published ' + fmtD(next.p) + ' (Avinor plan, may change).', warn: false };
+    return { text: 'Current as far as the AIRAC list goes. It has no later date, so it needs updating.', warn: false };
+  }
   function renderMinNote() {
-    const cycles = Math.floor((Date.now() - AERO_DATA.airacMs) / (28 * 86400e3));
-    const el = $('minNote');
     $('minMissing').hidden = !(dataMissing || dataSchemaBad);
     $('minMissing').textContent = dataMissing ? 'minima.js did not load, so there are no approach minima or MSA. Check that minima.js is in the repo next to index.html.' : 'minima.js is not the version this page expects. Replace it with the matching file.';
-    if (dataMissing) { el.textContent = 'No approach minima loaded.'; el.className = 'minnote stale'; return; }
-    el.textContent = 'Approach minima and MSA: AIP, AIRAC ' + AERO_DATA.airac + ' (DH floor 200 ft, RVR 550 m, highest MSA).' + (cycles >= 1 ? ' ' + cycles + ' AIRAC cycle' + (cycles > 1 ? 's' : '') + ' old, verify.' : '');
-    el.className = 'minnote' + (cycles >= 1 ? ' stale' : '');
+    const el = $('minNote'), el2 = $('airacNote');
+    if (dataMissing) { el.textContent = 'No approach minima loaded.'; el.className = 'minnote stale'; el2.textContent = ''; return; }
+    el.textContent = 'Approach minima and MSA: AIP, AIRAC ' + AERO_DATA.airac + ' (DH floor 200 ft, RVR by DH and approach lights, highest MSA).';
+    el.className = 'minnote';
+    const st = airacStatus();
+    el2.textContent = st.text;
+    el2.className = 'minnote' + (st.warn ? ' stale' : '');
   }
+  window.__airac = airacStatus;
   function renderLegend() {
     $('legend').innerHTML =
       '<span><i class="sw" style="background:' + COLORS[3] + '"></i>No alternate</span>' +
@@ -1527,7 +1556,7 @@ select{font:inherit;font-size:16px;color:inherit}
       '<span><i class="sw" style="background:' + COLORS[0] + '"></i>2 alternates</span>' +
       '<span><i class="sw" style="background:repeating-linear-gradient(135deg,#7d8799 0 2px,#232b3a 2px 4px)"></i>TAF ends within ETA window</span>' +
       '<span>' + WARN + 'User entered</span>';
-    $('mNote').textContent = 'DH and RVR come from the approach data (or your custom entry). The ceiling for no alternate is the highest MSA minus AD elevation (AIP), never below DH + 400 ft. Without MSA data the ' + cfg.greenCig + ' ft proxy applies and the aerodrome shows NO MSA. DH 250 ft or more also needs a ceiling at or above DH for one alternate.';
+    $('mNote').textContent = 'DH and RVR come from the approach data (RVR from AMC6 CAT.OP.MPA.110 Table 23 by DH and approach lights, 800 m minimum for LOC) or your custom entry. The ceiling for no alternate is the highest MSA minus AD elevation (AIP), never below DH + 400 ft. Without MSA data the ' + cfg.greenCig + ' ft proxy applies and the aerodrome shows NO MSA. DH 250 ft or more also needs a ceiling at or above DH for one alternate.';
   }
 
   /* ---------- reorder aerodromes (drag handles) ---------- */
