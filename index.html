@@ -210,10 +210,17 @@ select{font:inherit;font-size:16px;color:inherit}
 
 /* v1.10: groups in the ETA window */
 .pill.inwin{outline:1.5px solid var(--blue);outline-offset:2px}
-.winnote{font-size:10px;color:var(--blue);margin:2px 0 7px;line-height:1.35}
-.winnote:empty{display:none}
 .hr.inwin{border-left-color:var(--blue)}
-.sw.swo{background:transparent;border:1.5px solid var(--blue)}
+
+/* v1.11: timing tip and summary caption */
+.tip{margin-top:6px}
+.tip:empty{display:none}
+.tiprow{display:flex;align-items:center;gap:8px;border:1px solid var(--blue);border-radius:8px;padding:6px 8px}
+.tiptxt{flex:1;min-width:0;font-size:11.5px;color:var(--text);line-height:1.35}
+.tipend{display:inline-block;border:1px solid var(--muted);color:var(--muted);border-radius:4px;padding:0 4px;font-size:9.5px;font-weight:600;margin-left:3px;white-space:nowrap}
+.tipwarn{font-size:11px;color:var(--c-red);margin:4px 2px 0}
+.srow .sright{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none}
+.saltag{border:1px solid var(--c-red);color:var(--c-red);border-radius:5px;padding:0 5px;font-size:9.5px;font-weight:600;white-space:nowrap}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -268,7 +275,7 @@ select{font:inherit;font-size:16px;color:inherit}
     <button class="btn" id="addBtn">Add</button>
   </div>
 
-  <div class="version">TAF Timeline v1.10</div>
+  <div class="version">TAF Timeline v1.11</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="sr" role="status" aria-live="polite"></div>
@@ -446,15 +453,14 @@ select{font:inherit;font-size:16px;color:inherit}
   function classifyApproach(s, ap, cfg, indep, iso) {
     const th = limitsFor(ap, cfg, iso);
     const vis = s.vis == null ? INF : s.vis, cig = s.cig == null ? INF : s.cig;
-    const target = { 1: iso ? 'isolated planning minima' : 'one alternate', 2: 'no alternate with ' + FUEL, 3: 'no alternate' };
     let wc = 0;
     for (const c of [3, 2, 1]) if (vis >= th[c].vis && cig >= th[c].cig) { wc = c; break; }
     let cat = wc, factor = '';
     if (wc === 2 && !indep) { cat = 1; factor = 'no second independent approach for no alternate with ' + FUEL; }
     else if (cat < 3) {
-      const n = cat + 1, nx = th[n], f = [];
-      if (vis < nx.vis) f.push('visibility ' + fmtVis(vis) + ', needs ' + nx.vis + ' m for ' + target[n] + (n === 3 && nx.vis === cfg.greenVis ? ' (proxy)' : ''));
-      if (cig < nx.cig) f.push('ceiling ' + cig + ' ft, needs ' + nx.cig + ' ft for ' + target[n] + (n === 3 && nx.cig === cfg.greenCig ? ' ' + (cfg.msaNote || '(proxy)') : ''));
+      const nx = th[cat + 1], f = [];      // what holds the colour back: the weather as it is
+      if (vis < nx.vis) f.push('visibility ' + fmtVis(vis));
+      if (cig < nx.cig) f.push('ceiling ' + cig + ' ft');
       factor = f.join('; ');
     }
     return { cat, factor };
@@ -463,8 +469,8 @@ select{font:inherit;font-size:16px;color:inherit}
   // Is the aerodrome usable as an alternate? RVR/VIS + 400 m and ceiling at or above DH + 200 ft
   function altCheck(s, ap) {
     const vis = s.vis == null ? INF : s.vis, cig = s.cig == null ? INF : s.cig, f = [];
-    if (vis < ap.v + 400) f.push('visibility ' + fmtVis(vis) + ', needs ' + (ap.v + 400) + ' m');
-    if (cig < ap.d + 200) f.push('ceiling ' + cig + ' ft, needs ' + (ap.d + 200) + ' ft');
+    if (vis < ap.v + 400) f.push('visibility ' + fmtVis(vis));
+    if (cig < ap.d + 200) f.push('ceiling ' + cig + ' ft');
     return f.join('; ');
   }
 
@@ -747,7 +753,7 @@ select{font:inherit;font-size:16px;color:inherit}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.10';
+  const VERSION = '1.11';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -1327,7 +1333,7 @@ select{font:inherit;font-size:16px;color:inherit}
     if (wrap) wrap.innerHTML = buttonHTML(m, T);
     if (menu) { menu.hidden = ui.menu !== id; if (!menu.hidden) menu.innerHTML = menuHTML(m, T); }
     const badge = card.querySelector('.vbadge'), sub = card.querySelector('.vsub'), ro = card.querySelector('.readout');
-    const notes = card.querySelector('.notes'), altag = card.querySelector('.altag'), disctag = card.querySelector('.disctag');
+    const notes = card.querySelector('.notes'), tipEl = card.querySelector('.tip'), altag = card.querySelector('.altag'), disctag = card.querySelector('.disctag');
     const vf = verdictFor(m);
     const vcat = vf && vf.cat != null ? vf.cat : null;
     if (vcat != null) {
@@ -1340,19 +1346,14 @@ select{font:inherit;font-size:16px;color:inherit}
       sub.textContent = '';
     }
     // TAF groups used for the colour at the ETA get a thin blue outline
-    let winSet = null, winText = '';
-    if (flight.eta != null && m.gridAuto && vcat != null && vcat >= 0) {
-      winSet = C.groupsInWindow(m.taf, selGrid(m), gridIndex(m, flight.eta), flight.ft, vcat, m.skip);
-      const w = C.verdictWindow(vcat, flight.ft);
-      winText = 'Blue outline: TAF groups used for the colour at your ETA, window ' + hhmm(flight.eta - w.b * C.STEP_MS) + ' to ' + hhmm(flight.eta + w.a * C.STEP_MS) + ' local time' +
-        (vcat === 3 ? ' (ETA ±1 h).' : ' (the ' + C.FUEL + ' check looks up to 2 h either side, from departure at the earliest).');
-    }
+    let winSet = null;
+    if (flight.eta != null && m.gridAuto && vcat != null && vcat >= 0) winSet = C.groupsInWindow(m.taf, selGrid(m), gridIndex(m, flight.eta), flight.ft, vcat, m.skip);
     m.winGroups = winSet;
     card.querySelectorAll('.pills .pill[data-gi]').forEach(el => {
       const g = m.taf && m.taf.groups[+el.dataset.gi];
       el.classList.toggle('inwin', !!(winSet && g && winSet.has(g)));
     });
-    const wn = card.querySelector('.winnote'); if (wn) wn.textContent = winText;
+    if (tipEl) tipEl.innerHTML = tipHTML(m, tips[id]);
     // below alternate minima within ETA +/- 1 h
     const ab = flight.eta != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, flight.eta)) : null;
     altag.hidden = !ab;
@@ -1374,7 +1375,46 @@ select{font:inherit;font-size:16px;color:inherit}
     if (how) how.innerHTML = howHTML(m);
     draw(id);
   }
-  function drawAll() { for (const id of list) updateCardDynamic(id); renderSummary(); }
+  // Timing tips: move departure and ETA together by up to 60 min. One tip per card, only if the colour gets better.
+  let tips = {};
+  function tipFor(m) {
+    if (flight.dep == null || flight.eta == null || flight.ft == null || !m.hasMin || !m.gridAuto) return null;
+    const vs = ensureVerdicts(m), i0 = gridIndex(m, flight.eta), v0 = vs[i0];
+    if (!v0 || v0.cat < 0) return null;
+    const floor = baseNow();
+    let best = null;
+    for (let d = -60; d <= 60; d += 5) {
+      if (!d || flight.dep + d * M < floor) continue;                        // departure cannot move into the past
+      const v = vs[i0 + d / 5];
+      if (!v || v.cat < 0 || v.cat <= v0.cat) continue;                      // only a better colour counts
+      if (!best || v.cat > best.cat || (v.cat === best.cat && (Math.abs(d) < Math.abs(best.d) || (Math.abs(d) === Math.abs(best.d) && d < best.d)))) best = { d, cat: v.cat, partial: !!v.partial };
+    }
+    if (!best) return null;
+    best.cautions = [];                                                      // other aerodromes that would newly fall below alternate minima
+    for (const id of list) {
+      const o = model[id];
+      if (!o || o === m || !o.gridAuto || o.iso || o.off) continue;
+      const g = selGrid(o), j0 = gridIndex(o, flight.eta);
+      if (!C.altBelowAt(g, j0) && C.altBelowAt(g, j0 + best.d / 5)) best.cautions.push(id);
+    }
+    return best;
+  }
+  function computeTips() { tips = {}; for (const id of list) { const m = model[id]; if (m) tips[id] = tipFor(m); } }
+  function tipHTML(m, t) {
+    if (!t) return '';
+    const mins = Math.abs(t.d);
+    return '<div class="tiprow"><span class="tiptxt">Tip: depart ' + mins + ' min ' + (t.d < 0 ? 'earlier' : 'later') + ' (ETA ' + hhmm(flight.eta + t.d * M) + ') for ' + esc(verdictText(t.cat, m)) + '.' +
+      (t.partial ? ' <span class="tipend">TAF ends in window</span>' : '') + '</span>' +
+      '<button class="btn small" data-act="applytip" data-d="' + t.d + '">Apply</button></div>' +
+      (t.cautions.length ? '<div class="tipwarn">Caution: ' + esc(t.cautions.join(', ')) + ' would go below alternate minima.</div>' : '');
+  }
+  function applyTip(d) {
+    const base = baseNow();
+    if (flight.dep == null || flight.dep + d * M < base) return;
+    flight.dep += d * M; flight.eta += d * M;
+    syncFlight(); drawAll();
+  }
+  function drawAll() { computeTips(); for (const id of list) updateCardDynamic(id); renderSummary(); }
 
   /* ---------- summary strip ---------- */
   function renderSummary() {
@@ -1387,8 +1427,10 @@ select{font:inherit;font-size:16px;color:inherit}
       if (!m.hasMin) return '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap muted">No minima data</span></button>';
       const d = dispState(m, T), vf = verdictFor(m);
       const bg = vf && vf.cat != null && vf.cat >= 0 ? COLORS[vf.cat] : null;
+      const ab = flight.eta != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, flight.eta)) : null;
       return '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap">' + esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
-        '<span class="sbd' + (bg ? '' : ' none') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + esc(vf ? vf.text : '') + '</span></button>';
+        '<span class="sright"><span class="sbd' + (bg ? '' : ' none') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + esc(vf ? vf.text : '') + '</span>' +
+        (ab ? '<span class="saltag">BELOW ALTN MINIMA</span>' : '') + '</span></button>';
     }).join('');
   }
   $('summary').addEventListener('click', e => {
@@ -1455,7 +1497,7 @@ select{font:inherit;font-size:16px;color:inherit}
     if (m.hasMin) h += '<div class="verdict"><div class="vbadge none"></div><div class="vsub"></div><div class="altag" hidden>BELOW ALTN MINIMA</div><div class="disctag" hidden></div></div>';
     h += '<button class="rm" data-act="rm" aria-label="Remove ' + id + '">×</button></div>';
     if (m.hasMin) {
-      h += '<div class="appr"><div class="apbtnwrap"></div><div class="apmenu" hidden></div></div><div class="notes"></div>';
+      h += '<div class="appr"><div class="apbtnwrap"></div><div class="apmenu" hidden></div></div><div class="notes"></div><div class="tip"></div>';
     } else {
       h += '<div class="nomin"><span>No minima data</span><button class="btn" data-act="enter">Enter minima</button></div>';
     }
@@ -1467,7 +1509,7 @@ select{font:inherit;font-size:16px;color:inherit}
     }
     if (m.hasMin) h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
     if (m.taf && !m.taf.error) {
-      h += '<div class="lbl tafl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="winnote"></div><div class="pills">';
+      h += '<div class="lbl tafl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="pills">';
       m.taf.groups.forEach((g, gi) => { if (g.state) h += pillHTML(groupText(g, m.taf), m, g.state, { gi, off: m.skip.has(g), prob30: g.prob === 30 }); });
       h += '</div><details class="rawd"><summary>Show raw TAF</summary><div class="raw">' + esc(m.taf.raw) + '</div></details>';
       h += '<details class="rawd"><summary>How this was read</summary><div class="howread">' + howHTML(m) + '</div></details>';
@@ -1523,8 +1565,9 @@ select{font:inherit;font-size:16px;color:inherit}
     switch (t.dataset.act) {
       case 'warn': toast('User entered, not from AIP.'); break;
       case 'menu': { const prev = ui.menu; ui.menu = prev === id ? null : id; if (prev && prev !== id) updateCardDynamic(prev); updateCardDynamic(id); break; }
-      case 'pin': pin[id] = t.dataset.ap; ui.menu = null; updateCardDynamic(id); break;
-      case 'auto': delete pin[id]; ui.menu = null; updateCardDynamic(id); break;
+      case 'pin': pin[id] = t.dataset.ap; ui.menu = null; drawAll(); break;
+      case 'auto': delete pin[id]; ui.menu = null; drawAll(); break;
+      case 'applytip': applyTip(+t.dataset.d); break;
       case 'addcustom': case 'enter': openEditor(id, null); break;
       case 'editcustom': openEditor(id, t.dataset.cid); break;
       case 'editmsa': openMsa(id); break;
@@ -1607,7 +1650,6 @@ select{font:inherit;font-size:16px;color:inherit}
       '<span><i class="sw" style="background:' + COLORS[1] + '"></i>1 alternate</span>' +
       '<span><i class="sw" style="background:' + COLORS[0] + '"></i>2 alternates</span>' +
       '<span><i class="sw" style="background:repeating-linear-gradient(135deg,#7d8799 0 2px,#232b3a 2px 4px)"></i>TAF ends within ETA window</span>' +
-      '<span><i class="sw swo"></i>TAF group in the ETA window</span>' +
       '<span>' + WARN + 'User entered</span>';
     $('mNote').textContent = 'DH and RVR come from the approach data (RVR from AMC6 CAT.OP.MPA.110 Table 23 by DH and approach lights, 800 m minimum for LOC) or your custom entry. The ceiling for no alternate is the highest MSA minus AD elevation (AIP), never below DH + 400 ft. Without MSA data the ' + cfg.greenCig + ' ft proxy applies and the aerodrome shows NO MSA. DH 250 ft or more also needs a ceiling at or above DH for one alternate.';
   }
