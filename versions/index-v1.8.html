@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14">
+<title>TAF Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0e14; --surface:#121722; --surface2:#171d2a; --line:#232b3a;
+  --text:#d7dde8; --muted:#7d8799; --faint:#4a5365;
+  --amber:#e8a020; --blue:#4ea8de;
+  --c-green:#3fb950; --c-g15:#9cc53a; --c-amber:#e8a020; --c-red:#e5484d; --c-none:#2a3140;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --display:'Bebas Neue','Arial Narrow',Impact,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px; line-height:1.45;
+  background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:24px 24px; min-height:100vh;
+}
+button,input{font:inherit;color:inherit}
+input:not([type=range]){font-size:16px}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.wrap{max-width:720px;margin:0 auto;padding:0 12px 40px}
+
+/* header */
+header{display:flex;align-items:center;gap:10px;padding:14px 0 10px}
+h1{white-space:nowrap;font-family:var(--display);font-weight:400;font-size:30px;letter-spacing:1px;margin:0;line-height:1;color:var(--text)}
+h1 b{color:var(--amber);font-weight:400}
+.hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:7px 11px;font-size:12px;font-weight:500}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#14100a;font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.icon-btn{background:none;border:1px solid var(--line);border-radius:6px;width:34px;height:32px;display:grid;place-items:center;color:var(--muted)}
+.age{font-size:11px;color:var(--muted);text-align:right;line-height:1.2}
+.age.stale{color:var(--amber)}
+.warn{font-size:11px;color:#c9b27a;border:1px solid #4a3b18;background:#1a150a;border-radius:6px;padding:6px 9px;margin-bottom:10px}
+
+/* flight panel */
+.flight{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:rgba(11,14,20,.94);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:8px;padding:8px 10px 6px;margin-bottom:12px}
+.tz{font-size:10px;color:var(--muted);margin-bottom:2px}
+.frow{display:grid;grid-template-columns:84px 58px 1fr;align-items:center;gap:8px;height:32px}
+.frow label{font-size:11px;color:var(--muted)}
+.fval{font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
+.frow.unset .fval{color:var(--faint)}
+.frow.unset input[type=range]{opacity:.45}
+.frow.dep .fval{color:var(--blue)} .frow.eta .fval{color:#fff}
+.fhint{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;padding-top:2px}
+.fhint button{background:none;border:none;color:var(--blue);padding:0;font-size:11px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:var(--line);border-radius:2px}
+input[type=range]::-moz-range-track{height:4px;background:var(--line);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--text);margin-top:-8px;border:3px solid var(--bg)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--text);border:3px solid var(--bg)}
+.frow.dep input::-webkit-slider-thumb{background:var(--blue)} .frow.dep input::-moz-range-thumb{background:var(--blue)}
+.frow.ft input::-webkit-slider-thumb{background:var(--muted)} .frow.ft input::-moz-range-thumb{background:var(--muted)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted);margin:0 2px 10px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* cards */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 12px 10px;margin-bottom:12px}
+.chead{display:flex;align-items:flex-start;gap:10px}
+.icao{font-family:var(--display);font-size:32px;line-height:.9;letter-spacing:.5px}
+.sname{font-size:11px;color:var(--muted);margin-top:3px;max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.verdict{margin-left:auto;text-align:right}
+.vbadge{display:inline-block;border-radius:6px;padding:4px 8px;font-weight:600;font-size:12px;color:#0c0f14;white-space:nowrap}
+.vbadge.none{background:var(--c-none);color:var(--muted);font-weight:500}
+.vsub{font-size:10px;color:var(--muted);margin-top:3px}
+.rm{background:none;border:none;color:var(--faint);font-size:18px;line-height:1;padding:0 0 0 6px}
+.metar{margin-top:10px}
+.pills+details,.tl+.lbl{margin-top:8px}
+.lbl{font-size:10px;color:var(--muted);letter-spacing:.3px;margin-bottom:3px;display:flex;gap:8px}
+.lbl .stale{color:var(--amber)}
+.tl{margin-top:10px;position:relative}
+canvas{display:block;width:100%;height:74px;touch-action:pan-y}
+.readout{font-size:11px;min-height:2.9em;color:var(--muted);margin-top:4px}
+.readout b{color:var(--text);font-weight:600}
+.pills{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:4px}
+.pill{border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:500;color:#0c0f14;max-width:100%;word-break:break-word}
+.pill .tag{font-size:10px;font-weight:600;background:rgba(0,0,0,.18);border-radius:4px;padding:0 4px;margin-left:6px;white-space:nowrap}
+.raw{font-size:11px;color:var(--muted);margin-top:8px;word-break:break-word}
+details.rawd summary{font-size:10px;color:var(--faint);cursor:pointer;margin-top:8px;list-style:none}
+details.rawd summary::-webkit-details-marker{display:none}
+.err{color:var(--c-red);font-size:12px;margin-top:8px}
+
+/* add + settings */
+.add{display:flex;gap:8px;margin:4px 0 14px}
+.add input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;text-transform:uppercase}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.panel h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 6px;letter-spacing:.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.grid2 label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.grid2 input{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px}
+.note{font-size:11px;color:var(--muted);margin-top:8px}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:12px;max-width:92vw;z-index:20;display:none}
+.version{text-align:center;font-size:10px;color:var(--faint);margin-top:18px;opacity:.6}
+
+/* inputs: 16px stops iOS zooming in on focus */
+input:not([type=range]),select,textarea{font-size:16px}
+select{font:inherit;font-size:16px;color:inherit}
+.grid2 select{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px;width:100%}
+.grid2 label,.grid2 input,.grid2 select{min-width:0}
+.grid2 input{width:100%}
+.minnote{font-size:10.5px;color:var(--muted);margin:-4px 2px 10px}
+.minnote.stale{color:var(--amber)}
+.warnico{display:inline-block;vertical-align:-3px;margin-left:5px;cursor:pointer;flex:none}
+.legend .warnico{margin-left:0;margin-right:5px}
+
+/* approach button + dropdown */
+.appr{position:relative;margin-top:10px}
+.apbtn{width:100%;display:flex;align-items:center;gap:8px;min-height:46px;border:0;border-radius:8px;padding:6px 10px;text-align:left;color:#0c0f14}
+.apbtn.neutral{background:var(--surface2);color:var(--muted);border:1px solid var(--line)}
+.apbtn .abody{display:flex;flex-direction:column;min-width:0}
+.apbtn .al{font-size:15px;font-weight:600;line-height:1.15;display:flex;align-items:center}
+.apbtn .as{font-size:10.5px;font-weight:500;opacity:.78;line-height:1.3}
+.apbtn .chev{margin-left:auto;flex:none}
+.apmenu{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;background:#0e131d;border:1px solid var(--amber);border-radius:10px;padding:6px;max-height:min(62vh,440px);overflow:auto;box-shadow:0 14px 34px rgba(0,0,0,.6)}
+.apmenu[hidden]{display:none}
+.aprow{display:flex;align-items:center;gap:9px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 9px;margin-bottom:5px;text-align:left;cursor:pointer;min-height:44px}
+.aprow:last-child{margin-bottom:0}
+.aprow .sw2{width:6px;align-self:stretch;border-radius:3px;flex:none}
+.aprow .body{min-width:0;flex:1}
+.aprow .t1{font-weight:600;font-size:13px;display:flex;align-items:center}
+.aprow .t2{font-size:10.5px;color:var(--muted);line-height:1.3}
+.aprow .st{font-size:11px;font-weight:600;white-space:nowrap;text-align:right}
+.aprow .ed{font-size:11px;color:var(--blue);border:1px solid var(--line);border-radius:5px;padding:3px 7px}
+.aprow.sel{border-color:var(--blue);box-shadow:0 0 0 1px var(--blue) inset}
+.aprow.auto{border-style:dashed}
+.aprow.add{color:var(--amber);font-weight:600;font-size:12.5px;justify-content:center;background:transparent;border-style:dashed}
+.pbn{font-size:10.5px;color:var(--amber);margin-top:5px;min-height:0}
+.pbn:empty{display:none}
+
+/* no data + editor */
+.nomin{display:flex;align-items:center;gap:10px;margin-top:10px;padding:8px 10px;border:1px dashed var(--line);border-radius:8px;color:var(--muted);font-size:12px}
+.nomin .btn{margin-left:auto}
+.editor{margin-top:10px;padding:10px;background:var(--surface2);border:1px solid #4a3b18;border-radius:8px}
+.editor .eh{display:flex;align-items:center;gap:2px;font-size:13px;margin-bottom:8px}
+.editor .eh .warnico{margin:0 6px 0 0}
+.erow{display:flex;gap:8px;margin-top:10px}
+.btn.danger{color:var(--c-red);border-color:#5a2326;margin-left:auto}
+.pill.neutral{background:var(--surface2);color:var(--text);border:1px solid var(--line)}
+
+/* v1.5 additions */
+.summary{display:flex;flex-direction:column;gap:5px;margin:0 0 12px}
+.summary:empty{display:none}
+.srow{display:flex;align-items:center;gap:10px;width:100%;min-height:42px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px;text-align:left}
+.srow .sic{font-family:var(--display);font-size:22px;letter-spacing:.5px;line-height:1;flex:none;min-width:3.4em}
+.srow .sap{flex:1;min-width:0;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;align-items:center}
+.srow .sap.muted{color:var(--muted)}
+.srow .sbd{flex:none;border-radius:6px;padding:3px 7px;font-size:11px;font-weight:600;color:#0c0f14;white-space:nowrap}
+.srow .sbd.none{background:var(--c-none);color:var(--muted);font-weight:500}
+.card{scroll-margin-top:210px}
+.altag{display:inline-block;margin-top:4px;border:1px solid var(--c-red);color:var(--c-red);border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600;letter-spacing:.2px}
+.disctag{display:inline-block;margin-top:4px;border:1px solid var(--blue);color:var(--blue);border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600}
+.altag[hidden],.disctag[hidden]{display:none}
+.verdict{display:flex;flex-direction:column;align-items:flex-end}
+.notes{margin-top:6px}
+.notes:empty{display:none}
+.nl{font-size:10.5px;color:var(--amber);margin-top:3px;display:flex;align-items:center;flex-wrap:wrap}
+.nl .warnico{margin:0 5px 0 0}
+.better{display:block;width:100%;text-align:left;background:transparent;border:1px dashed var(--blue);color:var(--blue);border-radius:7px;padding:7px 9px;font-size:11.5px;font-weight:600;min-height:36px}
+.altw{color:var(--c-red)}
+.pill.off{background:transparent;border:1px dashed var(--line);color:var(--faint);text-decoration:line-through}
+.pill .disc{margin-left:8px;font-size:10px;font-weight:600;background:rgba(0,0,0,.2);border:1px solid rgba(0,0,0,.35);border-radius:5px;padding:2px 7px;color:inherit;text-decoration:none;min-height:24px}
+.pill.off .disc{background:transparent;border-color:var(--line);color:var(--blue)}
+.howread{margin-top:6px}
+.hr{border-left:2px solid var(--line);padding:2px 0 2px 8px;margin:6px 0}
+.hh{font-size:11.5px;color:var(--text);word-break:break-word}
+.hn{font-size:10px;color:var(--faint);margin-top:1px}
+.hv{font-size:10.5px;color:var(--muted);margin-top:2px}
+.hres{font-size:10.5px;font-weight:600;margin-top:2px}
+.chk{display:flex;gap:9px;align-items:flex-start;margin-top:10px;font-size:11.5px;color:var(--text)}
+.chk input{width:22px;height:22px;flex:none;margin:0;accent-color:var(--amber)}
+.editor label.one{display:flex;flex-direction:column;gap:3px;font-size:11px;color:var(--muted)}
+.editor label.one input{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px;width:100%}
+
+/* v1.6: NO MSA tag */
+.nomsa{margin-left:7px;font-size:9px;font-weight:700;letter-spacing:.3px;border:1px solid currentColor;border-radius:4px;padding:0 4px;line-height:1.5;white-space:nowrap;flex:none}
+.apbtn .nomsa{color:#14100a;background:rgba(0,0,0,.14);border-color:rgba(0,0,0,.45)}
+.apbtn.neutral .nomsa,.srow .nomsa{color:var(--amber);background:transparent;border-color:var(--amber)}
+
+/* v1.7: reorder + data warning */
+.warn.bad{color:#f2a3a6;border-color:#5a2326;background:#1d0e0f}
+.sumhead{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 6px;font-size:11px;color:var(--muted)}
+.sumhead[hidden]{display:none}
+.btn.small{padding:5px 10px;font-size:11.5px;min-height:32px}
+.reorder{position:relative;margin-bottom:12px}
+.rrow{position:relative;display:flex;align-items:center;gap:10px;height:52px;margin-bottom:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0 6px 0 12px}
+.rrow .ric{font-family:var(--display);font-size:24px;letter-spacing:.5px;min-width:3.4em;line-height:1}
+.rrow .rnm{flex:1;min-width:0;font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grip{flex:none;width:48px;height:44px;display:grid;place-items:center;background:var(--surface2);border:1px solid var(--line);border-radius:8px;color:var(--muted);touch-action:none;cursor:grab;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.rrow.dragging{z-index:6;border-color:var(--amber);box-shadow:0 10px 26px rgba(0,0,0,.6);background:#161c29}
+.rrow.dragging .grip{cursor:grabbing;color:var(--amber);border-color:var(--amber)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>TAF <b>Timeline</b></h1>
+    <div class="hdr-right">
+      <div class="age" id="age"></div>
+      <button class="btn primary" id="refresh">Refresh</button>
+      <button class="icon-btn" id="setBtn" aria-label="Settings" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="warn">Advisory only. Colours use ceiling, visibility and wind only. RVR reports, METAR trends, thunderstorms, icing and shear are not modelled. Always verify against the official forecast, AIP and OM.</div>
+
+  <section class="panel" id="settings" hidden>
+    <h2>Settings</h2>
+    <div class="grid2">
+      <label>Green ceiling (ft)<input type="number" id="mGc" inputmode="numeric" step="100" min="0"></label>
+      <label>Green visibility (m)<input type="number" id="mGv" inputmode="numeric" step="500" min="0"></label>
+      <label>Max tailwind (kt)<input type="number" id="mTw" inputmode="numeric" step="1" min="0"></label>
+      <label>Max crosswind (kt)<input type="number" id="mXw" inputmode="numeric" step="1" min="0"></label>
+    </div>
+    <p class="note" id="mNote"></p>
+    <button class="btn" id="mReset">Reset to defaults</button>
+  </section>
+
+  <section class="flight" aria-label="Flight times">
+    <div class="tz" id="tz"></div>
+    <div class="frow dep unset" id="rowDep"><label for="sDep">Departure</label><span class="fval" id="vDep">--</span><input type="range" id="sDep" step="5"></div>
+    <div class="frow ft unset" id="rowFt"><label for="sFt">Flight time</label><span class="fval" id="vFt">--</span><input type="range" id="sFt" min="30" max="180" step="5" value="60"></div>
+    <div class="frow eta unset" id="rowEta"><label for="sEta">ETA</label><span class="fval" id="vEta">--</span><input type="range" id="sEta" step="5"></div>
+    <div class="fhint"><span id="fHint">Set any two. The third is calculated.</span><button id="fReset">Clear</button></div>
+  </section>
+
+  <div class="legend" id="legend"></div>
+  <div class="minnote" id="minNote"></div>
+  <div class="minnote" id="barNote">Top strip: the forecast at that time. Wide bar: the result if your ETA is then. Bracket: ETA ±1 h; faint line: the +75kg fuel window.</div>
+  <div class="warn bad" id="minMissing" hidden></div>
+  <div class="sumhead" id="sumHead" hidden><span>Aerodromes</span><button class="btn small" id="reorderBtn">Reorder</button></div>
+  <div class="summary" id="summary"></div>
+  <div id="cards"></div>
+
+  <div class="add">
+    <input id="addIn" list="stations" placeholder="Add ICAO, e.g. ENZV" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <datalist id="stations"></datalist>
+    <button class="btn" id="addBtn">Add</button>
+  </div>
+
+  <div class="version">TAF Timeline v1.8</div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<div class="sr" id="sr" role="status" aria-live="polite"></div>
+
+<script src="minima.js"></script>
+<script>
+/* TAF Timeline core: parser, most-limiting evaluation, EASA colour rules.
+   Plain script: defines window.TAFCore (or global in Node). */
+(function (root) {
+  'use strict';
+
+  const STEP_MIN = 5;                 // timeline resolution
+  const STEP_MS = STEP_MIN * 60000;
+  const CAT = { NODATA: -1, RED: 0, AMBER: 1, G15: 2, GREEN: 3 };
+  const FUEL = '+75kg fuel';          // extra fuel when no alternate is needed (AW169)
+  const CAT_NAME = ['RED', 'AMBER', 'GREEN ' + FUEL.toUpperCase(), 'GREEN'];
+  const CAT_VERDICT = ['2 ALTN', '1 ALTN', 'NO ALTN · ' + FUEL.toUpperCase(), 'NO ALTN'];
+  const TYPE_A_DH = 250;              // DH/MDH at or above this = Type A approach
+  const INF = 99999;
+
+  const DEFAULT_CFG = { greenCig: 1500, greenVis: 5000, maxTw: 5, maxXw: 20 };
+
+  /* ---------- time ---------- */
+  // Resolve a TAF day/hour/minute to a Date close to the reference time.
+  function resolveTime(dd, hh, mm, ref) {
+    const r = new Date(ref);
+    let best = null;
+    for (let k = -1; k <= 1; k++) {
+      const d = Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + k, dd, hh, mm);
+      // guard against day overflow (e.g. 31st in a 30-day month)
+      const chk = new Date(Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + k, 1));
+      const dim = new Date(Date.UTC(chk.getUTCFullYear(), chk.getUTCMonth() + 1, 0)).getUTCDate();
+      if (dd > dim) continue;
+      if (best === null || Math.abs(d - ref) < Math.abs(best - ref)) best = d;
+    }
+    return best;
+  }
+  function parsePeriod(tok, ref) {
+    const m = /^(\d{2})(\d{2})\/(\d{2})(\d{2})$/.exec(tok);
+    if (!m) return null;
+    const from = resolveTime(+m[1], +m[2], 0, ref);
+    let to = resolveTime(+m[3], +m[4], 0, ref);
+    if (to <= from) to += 0; // resolveTime handles hh=24 via Date.UTC overflow
+    return { from, to };
+  }
+
+  /* ---------- element parsing ---------- */
+  const RE_WIND = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/;
+  const RE_CLOUD = /^(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU|\/\/\/)?$/;
+  const RE_VV = /^VV(\d{3}|\/\/\/)$/;
+  const RE_WX = /^(\+|-|VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?((DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+)$|^(\+|-)?(TS|SH)$/;
+
+  // Parse a list of tokens into the elements they specify (only those present).
+  function parseElements(tokens) {
+    const e = {};
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+      let m;
+      if (t === 'CAVOK') { e.cavok = true; e.vis = 10000; e.clouds = []; e.wx = []; continue; }
+      if ((m = RE_WIND.exec(t))) {
+        const f = m[4] === 'MPS' ? 1.944 : 1;
+        e.wind = { dir: m[1], spd: Math.round(+m[2] * f), gust: m[3] ? Math.round(+m[3] * f) : null, text: t };
+        continue;
+      }
+      if (/^\d{4}$/.test(t)) { e.vis = t === '9999' ? 10000 : +t; e.visText = t; continue; }
+      if (/^\d{4}(N|NE|E|SE|S|SW|W|NW|NDV)$/.test(t)) { e.vis = +t.slice(0, 4); e.visText = t; continue; }
+      // statute miles: P6SM, 2SM, 1/2SM, "1 1/2SM"
+      if ((m = /^(P)?(\d+)?(?:\/(\d+))?SM$/.exec(t))) {
+        let sm;
+        if (m[3]) sm = (+m[2]) / (+m[3]);
+        else sm = +m[2];
+        const prev = tokens[i - 1];
+        if (m[3] && prev && /^\d$/.test(prev)) sm += +prev;
+        e.vis = m[1] ? 10000 : Math.min(10000, Math.round(sm * 1609));
+        e.visText = t; continue;
+      }
+      if (t === 'NSC' || t === 'SKC' || t === 'CLR' || t === 'NCD') { e.clouds = []; continue; }
+      if ((m = RE_CLOUD.exec(t))) { (e.clouds = e.clouds || []).push({ cov: m[1], h: +m[2] * 100, text: t }); continue; }
+      if ((m = RE_VV.exec(t))) { (e.clouds = e.clouds || []).push({ cov: 'VV', h: m[1] === '///' ? 0 : +m[1] * 100, text: t }); continue; }
+      if (t === 'NSW') { e.wx = []; continue; }
+      if (RE_WX.test(t)) { (e.wx = e.wx || []).push(t); continue; }
+      // everything else (TX/TN, QNH, WS, RMK...) is ignored
+    }
+    return e;
+  }
+
+  function ceilingOf(clouds) {
+    let c = INF, txt = null;
+    for (const l of clouds || []) {
+      if ((l.cov === 'BKN' || l.cov === 'OVC' || l.cov === 'VV') && l.h < c) { c = l.h; txt = l.text; }
+    }
+    return { cig: c, cigText: txt };
+  }
+
+  function merge(base, el) {
+    const s = {
+      wind: base.wind, vis: base.vis, visText: base.visText,
+      clouds: base.clouds, wx: base.wx, cavok: base.cavok
+    };
+    if (el.wind) s.wind = el.wind;
+    if (el.vis !== undefined) { s.vis = el.vis; s.visText = el.visText || (el.cavok ? 'CAVOK' : null); s.cavok = !!el.cavok; }
+    if (el.clouds !== undefined) { s.clouds = el.clouds; if (!el.cavok) s.cavok = false; }
+    if (el.wx !== undefined) s.wx = el.wx;
+    const c = ceilingOf(s.clouds);
+    s.cig = c.cig; s.cigText = c.cigText;
+    return s;
+  }
+  const EMPTY = { wind: null, vis: 10000, visText: null, clouds: [], wx: [], cavok: false };
+
+  /* ---------- approaches, wind and classification ---------- */
+  // Navigation system class of an approach type; ILS/LOC share ground equipment per runway end.
+  function sysOf(t) {
+    if (t === 'ILS' || t === 'LOC') return 'ILS';
+    if (t === 'VOR') return 'VOR';
+    if (t === 'NDB') return 'NDB';
+    if (t === 'ARA') return 'ARA';
+    if (t === 'Other') return 'OTHER';
+    return 'GNSS'; // LPV, LNAV, LNAV/VNAV
+  }
+  function eqKey(ap) { const s = sysOf(ap.t); return s === 'ILS' ? 'ILS:' + (ap.r || '?') : s; }
+  // Two approaches with independent navaids exist at the aerodrome
+  function hasIndependent(list) { return new Set(list.map(eqKey)).size >= 2; }
+  function hasNonGnss(list) { return list.some(a => sysOf(a.t) !== 'GNSS'); }
+
+  // Wind components against a runway. Runway heading = runway number x 10 (36 = 360).
+  function windCheck(wind, ap, cfg) {
+    const out = { ok: true, hw: 0, xw: 0, tw: 0, reason: '', short: '' };
+    if (!wind || !ap.r || wind.dir === 'VRB') return out;
+    const spd = Math.max(wind.spd || 0, wind.gust || 0);        // gusts count
+    const hdg = (parseInt(ap.r, 10) || 0) * 10;
+    const diff = ((+wind.dir - hdg + 540) % 360) - 180;
+    const rad = diff * Math.PI / 180;
+    out.hw = spd * Math.cos(rad);
+    out.xw = Math.abs(spd * Math.sin(rad));
+    out.tw = Math.max(0, -out.hw);
+    const tw = Math.round(out.tw), xw = Math.round(out.xw), bad = [], sh = [];
+    if (tw > cfg.maxTw) { bad.push('tailwind ' + tw + ' kt, limit ' + cfg.maxTw + ' kt'); sh.push('TW ' + tw + 'KT'); }
+    if (xw > cfg.maxXw) { bad.push('crosswind ' + xw + ' kt, limit ' + cfg.maxXw + ' kt'); sh.push('XW ' + xw + 'KT'); }
+    if (bad.length) { out.ok = false; out.reason = bad.join(' and '); out.short = sh.join(' + '); }
+    return out;
+  }
+
+  // Auto pick: drop approaches outside the wind limits, take the runway with the most headwind
+  // (within 1 kt counts as equal), then the lowest minima (DH/MDH, then RVR), and only if those are
+  // equal the type rank k (ILS Y, ILS Z, ..., LPV, LOC).
+  function pickApproach(state, pool, cfg) {
+    const info = pool.map(ap => ({ ap, wc: windCheck(state.wind, ap, cfg) }));
+    const usable = info.filter(x => x.wc.ok);
+    if (!usable.length) {
+      info.sort((a, b) => b.wc.hw - a.wc.hw);
+      return { ap: info[0].ap, wc: info[0].wc, none: true };
+    }
+    const withRwy = usable.filter(x => x.ap.r);
+    const maxHw = withRwy.length ? Math.max.apply(null, withRwy.map(x => x.wc.hw)) : 0;
+    const tie = usable.filter(x => !x.ap.r || x.wc.hw >= maxHw - 1);
+    tie.sort((a, b) => (a.ap.d - b.ap.d) || (a.ap.v - b.ap.v) || (a.ap.k - b.ap.k) || (b.wc.hw - a.wc.hw));
+    return { ap: tie[0].ap, wc: tie[0].wc, none: false };
+  }
+
+  function limitsFor(ap, cfg, iso) {
+    const typeA = ap.d >= TYPE_A_DH;
+    return {
+      3: { cig: Math.max(cfg.greenCig, ap.d + 400), vis: Math.max(cfg.greenVis, 3000) },
+      2: { cig: ap.d + 400, vis: 3000 },
+      // isolated aerodrome: planning minima (RVR/VIS + 400 m, ceiling DH + 200 ft); otherwise Type A needs ceiling at or above DH
+      1: iso ? { cig: ap.d + 200, vis: ap.v + 400 } : { cig: typeA ? ap.d : 0, vis: ap.v }
+    };
+  }
+  const fmtVis = v => (v >= 10000 ? '10 km or more' : v + ' m');
+
+  function classifyApproach(s, ap, cfg, indep, iso) {
+    const th = limitsFor(ap, cfg, iso);
+    const vis = s.vis == null ? INF : s.vis, cig = s.cig == null ? INF : s.cig;
+    const target = { 1: iso ? 'isolated planning minima' : 'one alternate', 2: 'no alternate with ' + FUEL, 3: 'no alternate' };
+    let wc = 0;
+    for (const c of [3, 2, 1]) if (vis >= th[c].vis && cig >= th[c].cig) { wc = c; break; }
+    let cat = wc, factor = '';
+    if (wc === 2 && !indep) { cat = 1; factor = 'no second independent approach for no alternate with ' + FUEL; }
+    else if (cat < 3) {
+      const n = cat + 1, nx = th[n], f = [];
+      if (vis < nx.vis) f.push('visibility ' + fmtVis(vis) + ', needs ' + nx.vis + ' m for ' + target[n] + (n === 3 && nx.vis === cfg.greenVis ? ' (proxy)' : ''));
+      if (cig < nx.cig) f.push('ceiling ' + cig + ' ft, needs ' + nx.cig + ' ft for ' + target[n] + (n === 3 && nx.cig === cfg.greenCig ? ' ' + (cfg.msaNote || '(proxy)') : ''));
+      factor = f.join('; ');
+    }
+    return { cat, factor };
+  }
+
+  // Is the aerodrome usable as an alternate? RVR/VIS + 400 m and ceiling at or above DH + 200 ft
+  function altCheck(s, ap) {
+    const vis = s.vis == null ? INF : s.vis, cig = s.cig == null ? INF : s.cig, f = [];
+    if (vis < ap.v + 400) f.push('visibility ' + fmtVis(vis) + ', needs ' + (ap.v + 400) + ' m');
+    if (cig < ap.d + 200) f.push('ceiling ' + cig + ' ft, needs ' + (ap.d + 200) + ' ft');
+    return f.join('; ');
+  }
+
+  // ctx: { pool: [approach], forced: bool, cfg, indep }
+  function evalState(state, ctx) {
+    let ap, wc;
+    if (ctx.forced) { ap = ctx.pool[0]; wc = windCheck(state.wind, ap, ctx.cfg); }
+    else { const p = pickApproach(state, ctx.pool, ctx.cfg); ap = p.ap; wc = p.wc; }
+    if (!wc.ok) return { cat: CAT.RED, factor: wc.reason, apId: ap.id, apL: ap.l, windFail: true, windShort: wc.short, altOk: false, altFactor: wc.reason };
+    const r = classifyApproach(state, ap, ctx.cfg, ctx.indep, ctx.iso);
+    const af = ctx.iso ? '' : altCheck(state, ap);
+    return { cat: r.cat, factor: r.factor, apId: ap.id, apL: ap.l, windFail: false, windShort: '', altOk: !af, altFactor: af };
+  }
+
+  /* ---------- TAF parsing ---------- */
+  function tokenize(raw) {
+    return raw.replace(/=/g, ' ').replace(/\s+/g, ' ').trim().split(' ');
+  }
+
+  function parseTAF(raw, refTime) {
+    if (!raw) return null;
+    const ref = refTime || Date.now();
+    let tk = tokenize(raw);
+    const head = [];
+    while (tk.length && /^(TAF|AMD|COR|RTD)$/.test(tk[0])) head.push(tk.shift());
+    const icao = tk.shift();
+    let issue = null;
+    if (tk[0] && /^\d{6}Z$/.test(tk[0])) {
+      const t = tk.shift();
+      issue = resolveTime(+t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6), ref);
+    }
+    const valid = parsePeriod(tk[0] || '', issue || ref);
+    if (!valid) return { icao, error: 'No validity period', raw };
+    tk.shift();
+    if (tk[0] === 'NIL' || tk[0] === 'CNL') return { icao, error: 'TAF ' + tk[0], raw };
+    const vref = valid.from;
+
+    // split into groups
+    const groups = [];
+    let cur = { kind: 'BASE', tokens: [], from: valid.from, to: valid.to };
+    groups.push(cur);
+    for (let i = 0; i < tk.length; i++) {
+      const t = tk[i];
+      let m;
+      if ((m = /^FM(\d{2})(\d{2})(\d{2})$/.exec(t))) {
+        cur = { kind: 'FM', tokens: [], from: resolveTime(+m[1], +m[2], +m[3], vref), to: valid.to, label: t };
+        groups.push(cur); continue;
+      }
+      if (t === 'BECMG' || t === 'TEMPO' || /^PROB(30|40)$/.test(t)) {
+        let kind = t, label = t;
+        if (/^PROB/.test(t) && tk[i + 1] === 'TEMPO') { kind = 'PROBTEMPO'; label = t + ' TEMPO'; i++; }
+        else if (/^PROB/.test(t)) { kind = 'PROB'; }
+        const p = parsePeriod(tk[i + 1] || '', vref);
+        if (p) { i++; label += ' ' + tk[i]; }
+        cur = { kind, tokens: [], from: p ? p.from : valid.from, to: p ? p.to : valid.to, label, prob: /^PROB/.test(t) ? +t.slice(4) : 0 };
+        groups.push(cur); continue;
+      }
+      cur.tokens.push(t);
+    }
+
+    // base timeline: segments [{from,to,states:[...] , src}]
+    for (const g of groups) g.el = parseElements(g.tokens);
+    let state = merge(EMPTY, groups[0].el);
+    groups[0].state = state;
+    const base = [{ from: valid.from, to: valid.to, states: [{ s: state, src: groups[0] }] }];
+    function cut(t) { // split base segment at time t, return index of segment starting at t
+      for (let i = 0; i < base.length; i++) {
+        const b = base[i];
+        if (t <= b.from) return i;
+        if (t > b.from && t < b.to) {
+          base.splice(i + 1, 0, { from: t, to: b.to, states: b.states.slice() });
+          b.to = t;
+          return i + 1;
+        }
+      }
+      return base.length;
+    }
+    function stateAt(t) {
+      for (const b of base) if (t >= b.from && t < b.to) return b.states[b.states.length - 1].s;
+      return base[base.length - 1].states[base[base.length - 1].states.length - 1].s;
+    }
+    const sorted = groups.slice(1).filter(g => g.kind === 'FM' || g.kind === 'BECMG').sort((a, b) => a.from - b.from);
+    for (const g of sorted) {
+      const prev = stateAt(Math.max(g.from - 1, valid.from));
+      const ns = merge(g.kind === 'FM' ? prev : prev, g.el);
+      g.state = ns;
+      const endT = g.kind === 'FM' ? g.from : g.to;
+      const i1 = cut(g.from);
+      cut(endT);
+      cut(valid.to);
+      for (let i = i1; i < base.length; i++) {
+        const b = base[i];
+        if (b.from >= endT) b.states = [{ s: ns, src: g }];
+        else b.states = [{ s: prev, src: b.states[b.states.length - 1].src }, { s: ns, src: g }]; // BECMG transition: both apply
+      }
+    }
+    // overlays (TEMPO / PROB)
+    const overlays = groups.filter(g => g.kind === 'TEMPO' || g.kind === 'PROB' || g.kind === 'PROBTEMPO');
+    for (const g of overlays) g.state = merge(stateAt(g.from), g.el);
+
+    return { icao, raw: raw.trim(), head, issue, valid, groups, base, overlays };
+  }
+
+  // All candidate states at time t (base, BECMG transition states, active overlays)
+  function candidatesAt(taf, t, skip) {
+    if (!taf || taf.error || t >= taf.valid.to) return null;
+    // Before the TAF period starts, use its initial conditions (from 2 h before issue),
+    // so an ETA shortly after a new TAF comes into force isn't flagged as 'no TAF'.
+    const early = (taf.issue || taf.valid.from) - 2 * 3600e3;
+    if (t < taf.valid.from && t < early) return null;
+    if (t < taf.valid.from) t = taf.valid.from;
+    let seg = null;
+    for (const b of taf.base) if (t >= b.from && t < b.to) { seg = b; break; }
+    const out = [];
+    if (seg) for (const x of seg.states) out.push({ s: x.s, src: x.src });
+    const baseNow = out.length ? out[out.length - 1].s : EMPTY;
+    for (const o of taf.overlays) {
+      if (skip && skip.has(o)) continue;   // PROB30 group disregarded by the commander
+      if (t >= o.from && t < o.to) out.push({ s: merge(baseNow, o.el), src: o });
+    }
+    return out;
+  }
+
+  // Most limiting category at time t (each candidate state picks its own approach)
+  function evalAt(taf, t, ctx) {
+    const c = candidatesAt(taf, t, ctx.skip);
+    if (!c) return { cat: CAT.NODATA, factor: 'NO TAF', src: null };
+    let worst = null, altBad = null;
+    for (const x of c) {
+      const r = evalState(x.s, ctx);
+      if (!worst || r.cat < worst.cat) worst = Object.assign({ src: x.src }, r);
+      if (r.altOk === false && !altBad) altBad = r;
+    }
+    worst.altOk = !altBad; worst.altFactor = altBad ? altBad.altFactor : '';
+    return worst;
+  }
+
+  function buildGrid(taf, start, end, ctx) {
+    const n = Math.max(1, Math.ceil((end - start) / STEP_MS));
+    const raw = new Array(n);
+    for (let i = 0; i < n; i++) raw[i] = evalAt(taf, start + i * STEP_MS + STEP_MS / 2, ctx);
+    return { start, end, n, raw };
+  }
+
+  // Cells either side of ETA that must hold a category. Green +75kg fuel: 2 h before (or from departure,
+  // whichever is shorter) to 2 h after. Green and amber: 1 h either side.
+  function winCells(cat, ftMin) {
+    if (cat === 2) return { b: ftMin == null ? 24 : Math.min(24, Math.max(0, Math.floor(ftMin / STEP_MIN))), a: 24 };
+    return { b: 12, a: 12 };
+  }
+
+  function verdictCore(grid, i, ftMin) {
+    const r = grid.raw[i];
+    if (!r || r.cat === CAT.NODATA) return { cat: CAT.NODATA, cause: r };
+    for (const c of [3, 2, 1]) {
+      const w = winCells(c, ftMin);
+      let ok = true, cause = null, causeDist = INF, causeIdx = null;
+      for (let j = i - w.b; j <= i + w.a; j++) {
+        const x = grid.raw[j];
+        const cj = x ? x.cat : CAT.NODATA;
+        if (cj >= 0 && cj < c) {   // cells outside the TAF carry no forecast: not a limit
+          ok = false;
+          const d = Math.abs(j - i);
+          if (d < causeDist) { causeDist = d; causeIdx = j; cause = x; }
+        }
+      }
+      if (ok) return { cat: c, cause: r, causeIdx: i };
+      if (c === 1) return { cat: CAT.RED, cause: cause, causeIdx: causeIdx };
+    }
+  }
+
+  function verdictAt(grid, i, ftMin) {
+    const res = verdictCore(grid, i, ftMin);
+    if (res.cat >= 0 && res.cat < (grid.raw[i] ? grid.raw[i].cat : -1)) {
+      // downgraded by the window: find what blocked the next category up
+      const lost = res.cat + 1, w = winCells(lost, ftMin);
+      let best = INF;
+      for (let j = i - w.b; j <= i + w.a; j++) {
+        const x = grid.raw[j]; const cj = x ? x.cat : CAT.NODATA;
+        if (cj >= 0 && cj < lost && Math.abs(j - i) < best) { best = Math.abs(j - i); res.cause = x; res.causeIdx = j; }
+      }
+    }
+    return res;
+  }
+
+  // Below alternate minima anywhere in ETA +/- 1 h? Returns the nearest failing cell.
+  function altBelowAt(grid, i) {
+    let best = null;
+    for (let j = i - 12; j <= i + 12; j++) {
+      const x = grid.raw[j];
+      if (x && x.altOk === false) { const d = Math.abs(j - i); if (!best || d < best.d) best = { d, idx: j, factor: x.altFactor, src: x.src }; }
+    }
+    return best;
+  }
+
+  function buildVerdicts(grid, ftMin) {
+    const v = new Array(grid.n);
+    for (let i = 0; i < grid.n; i++) v[i] = verdictAt(grid, i, ftMin);
+    for (let i = 0; i < grid.n; i++) {
+      const vi = v[i], r = grid.raw[i];
+      vi.shoulder = 0; vi.partial = false;
+      if (vi.cat >= 0) {   // does the ETA window run past the end of the TAF? (flagged, not coloured red)
+        const pw = vi.cat >= 1 ? winCells(vi.cat, ftMin) : { b: 12, a: 12 };
+        for (let j = i - pw.b; j <= i + pw.a; j++) {
+          const x = grid.raw[j];
+          if (x && x.cat === CAT.NODATA) { vi.partial = true; break; }
+        }
+      }
+      if (vi.cat >= 0 && r.cat > vi.cat) {
+        const w = winCells(vi.cat + 1, ftMin);
+        let frac = null;
+        for (let j = Math.max(0, i - w.b); j <= Math.min(grid.n - 1, i + w.a); j++) {
+          if (grid.raw[j].cat >= 0 && grid.raw[j].cat <= vi.cat) {
+            const f = j < i ? (i - j) / Math.max(1, w.b) : (j - i) / Math.max(1, w.a);
+            if (frac === null || f < frac) frac = f;
+          }
+        }
+        vi.shoulder = Math.min(1, frac === null ? 1 : frac);
+      }
+    }
+    return v;
+  }
+
+  // Simple METAR parse → state
+  function parseMETAR(raw) {
+    if (!raw) return null;
+    let tk = tokenize(raw);
+    while (tk.length && /^(METAR|SPECI|COR|AUTO)$/.test(tk[0])) tk.shift();
+    const icao = tk.shift();
+    let time = null;
+    if (tk[0] && /^\d{6}Z$/.test(tk[0])) time = tk.shift();
+    const cut = tk.findIndex(t => /^(TEMPO|BECMG|NOSIG|RMK)$/.test(t));
+    const body = cut >= 0 ? tk.slice(0, cut) : tk;
+    const trend = cut >= 0 ? tk.slice(cut).join(' ') : '';
+    const s = merge(EMPTY, parseElements(body.filter(t => t !== 'AUTO')));
+    return { icao, time, state: s, trend, raw: raw.trim() };
+  }
+
+  const api = {
+    STEP_MIN, STEP_MS, CAT, CAT_NAME, CAT_VERDICT, FUEL, TYPE_A_DH, DEFAULT_CFG,
+    parseTAF, parseMETAR, sysOf, eqKey, hasIndependent, hasNonGnss, windCheck, pickApproach,
+    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.TAFCore = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(function () {
+  'use strict';
+  const C = window.TAFCore;
+  // minima.js holds the approach minima and MSA. If it did not load, run without minima and say so.
+  let dataMissing = false, dataSchemaBad = false;
+  if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
+  else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
+  const VERSION = '1.8';
+  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore' };
+  const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
+  const H = 3600e3, M = 60e3;
+  const $ = id => document.getElementById(id);
+  const TYPES = ['ILS', 'LOC', 'VOR', 'NDB', 'LNAV', 'LNAV/VNAV', 'LPV', 'ARA', 'Other'];
+  const WARN = '<svg class="warnico" data-act="warn" width="15" height="15" viewBox="0 0 24 24" role="img" aria-label="User entered, not from AIP"><path d="M12 2.5 22.5 20.5H1.5Z" fill="#14100a" stroke="#e8a020" stroke-width="2" stroke-linejoin="round"/><path d="M12 9v5.5" stroke="#e8a020" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="17.6" r="1.3" fill="#e8a020"/></svg>';
+  const CHEV = '<svg class="chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+
+  /* ---------- storage ---------- */
+  function load(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } }
+  function loadCfg() {
+    const o = load(LS.cfg, {}), c = Object.assign({}, C.DEFAULT_CFG);
+    for (const k of Object.keys(c)) if (typeof o[k] === 'number' && isFinite(o[k]) && o[k] >= 0) c[k] = o[k];
+    return c;
+  }
+
+  let list = load(LS.list, ['ENZV', 'ENBR', 'ENVA', 'ENTC', 'ENBS']);
+  let data = load(LS.data, { fetchedAt: null, stations: {}, demo: false });
+  let cfg = loadCfg();
+  let custom = load(LS.custom, {});          // { ICAO: [{ id, t, r, dh, rvr }] } user entered, this device only
+  let msa = load(LS.msa, {});                // { ICAO: ft above aerodrome } user entered ceiling for no alternate
+  let offshore = load(LS.off, {});           // { ICAO: true } offshore installation (never two independent approaches)
+  const pin = {};                            // icao -> approach id pinned this session
+  const disc = {};                           // icao -> { key: raw TAF, idx: [group indexes] } PROB30 groups disregarded
+  const ui = { menu: null, edit: null, draft: null, reorder: false };
+  const flight = { dep: null, ft: null, eta: null, set: new Set() };
+  const inspect = {};                        // icao -> time being inspected
+
+  /* ---------- formatting ---------- */
+  const pad = n => String(n).padStart(2, '0');
+  const offMs = t => -new Date(t).getTimezoneOffset() * M;       // device time zone offset at time t
+  const lt = t => new Date(t + offMs(t));                         // read local fields with getUTC*()
+  const hhmm = t => { const d = lt(t); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+  const ddhhmm = t => { const d = lt(t); return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+  function tzLabel() {
+    const o = Math.round(offMs(Date.now()) / M), a = Math.abs(o);
+    return 'Local time (UTC' + (o < 0 ? '-' : '+') + Math.floor(a / 60) + (a % 60 ? ':' + pad(a % 60) : '') + ')';
+  }
+  const dur = m => Math.floor(m / 60) + ':' + pad(m % 60);
+  function ago(t) {
+    if (!t) return '';
+    const m = Math.round((Date.now() - t) / M);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + ' min ago';
+    const h = Math.floor(m / 60);
+    return h + ' h ' + (m % 60) + ' min ago';
+  }
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function toast(msg, ms) {
+    const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+    clearTimeout(toast._t); toast._t = setTimeout(() => { t.style.display = 'none'; }, ms || 4500);
+  }
+  // Wording per category. Isolated aerodromes use planning minima instead of "one alternate".
+  function catName(c, m) {
+    if (c < 0) return 'NO TAF';
+    if (m && m.iso && c === 1) return 'ISOLATED';
+    if (m && m.iso && c === 0) return 'BELOW PLANNING MINIMA';
+    return C.CAT_NAME[c];
+  }
+  function verdictText(c, m) {
+    if (c < 0) return m && m.iso ? 'NO TAF' : 'NO TAF · 2 ALTN';
+    if (m && m.iso && c === 1) return 'ISOLATED · PNR';
+    if (m && m.iso && c === 0) return 'BELOW PLANNING MINIMA';
+    return C.CAT_VERDICT[c];
+  }
+  function shortCat(c, m) {
+    if (c < 0) return 'NO TAF';
+    if (m && m.iso && c === 1) return 'ISOLATED';
+    if (m && m.iso && c === 0) return 'BELOW MIN';
+    return ['2 ALTN', '1 ALTN', C.FUEL.toUpperCase(), 'NO ALTN'][c];
+  }
+  const catWords = c => ({ 1: 'one alternate', 2: 'no alternate with ' + C.FUEL, 3: 'no alternate' }[c] || '');
+
+  /* ---------- flight sliders ---------- */
+  const SPAN_MIN = 31 * 60; // slider reach
+  function baseNow() { return Math.ceil(Date.now() / (5 * M)) * 5 * M; }
+  function syncFlight() {
+    const base = baseNow();
+    const sDep = $('sDep'), sEta = $('sEta'), sFt = $('sFt');
+    sDep.min = 0; sDep.max = SPAN_MIN;
+    sEta.min = 30; sEta.max = SPAN_MIN + 180;
+    if (flight.dep != null && flight.dep < base) {   // keep departure from slipping into the past
+      flight.dep = base;
+      if (flight.ft != null && flight.set.size === 3) flight.eta = flight.dep + flight.ft * M;
+    }
+    if (flight.dep != null) sDep.value = (flight.dep - base) / M;
+    if (flight.eta != null) sEta.value = (flight.eta - base) / M;
+    if (flight.ft != null) sFt.value = flight.ft;
+    $('vDep').textContent = flight.dep != null ? hhmm(flight.dep) : '--';
+    $('vEta').textContent = flight.eta != null ? hhmm(flight.eta) : '--';
+    $('vFt').textContent = flight.ft != null ? dur(flight.ft) : '--';
+    $('rowDep').classList.toggle('unset', flight.dep == null);
+    $('rowEta').classList.toggle('unset', flight.eta == null);
+    $('rowFt').classList.toggle('unset', flight.ft == null);
+    $('fHint').textContent = flight.set.size >= 3 ? 'Linked: moving departure or ETA keeps the flight time.'
+      : flight.set.size === 0 ? 'Set any two. The third is calculated.' : 'Set one more value.';
+  }
+  function onSlider(which) {
+    const base = baseNow();
+    const v = +$({ dep: 'sDep', ft: 'sFt', eta: 'sEta' }[which]).value;
+    const linked = flight.set.size >= 3;
+    if (which === 'dep') flight.dep = base + v * M;
+    if (which === 'eta') flight.eta = base + v * M;
+    if (which === 'ft') flight.ft = v;
+    if (!linked) {
+      flight.set.add(which);
+      if (flight.set.size === 2) {
+        if (!flight.set.has('eta')) flight.eta = flight.dep + flight.ft * M;
+        else if (!flight.set.has('ft')) {
+          flight.ft = Math.max(30, Math.min(180, Math.round((flight.eta - flight.dep) / (5 * M)) * 5));
+          flight.eta = flight.dep + flight.ft * M;
+        } else {
+          flight.dep = Math.max(base, flight.eta - flight.ft * M);
+          flight.eta = flight.dep + flight.ft * M;
+        }
+        flight.set = new Set(['dep', 'ft', 'eta']);
+      }
+    } else {
+      if (which === 'dep' || which === 'ft') flight.eta = flight.dep + flight.ft * M;
+      if (which === 'eta') {
+        flight.dep = Math.max(base, flight.eta - flight.ft * M);
+        flight.eta = flight.dep + flight.ft * M;
+      }
+    }
+    syncFlight();
+    drawAll();
+  }
+  ['dep', 'ft', 'eta'].forEach(w => $({ dep: 'sDep', ft: 'sFt', eta: 'sEta' }[w]).addEventListener('input', () => onSlider(w)));
+  $('fReset').addEventListener('click', () => { flight.dep = flight.ft = flight.eta = null; flight.set = new Set(); syncFlight(); drawAll(); });
+
+  /* ---------- data ---------- */
+  async function refresh() {
+    if (!list.length) { toast('Add an aerodrome first.'); return; }
+    const btn = $('refresh'); btn.disabled = true; btn.textContent = 'Fetching…';
+    try {
+      const r = await fetch('api/wx?ids=' + encodeURIComponent(list.join(',')), { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      if (!j || !j.stations) throw new Error(j && j.error ? j.error : 'Unexpected response');
+      if (data.demo) data = { fetchedAt: null, stations: {}, demo: false };
+      for (const id of Object.keys(j.stations)) data.stations[id] = Object.assign({}, j.stations[id], { fetchedAt: j.fetchedAt });
+      data.fetchedAt = j.fetchedAt || Date.now();
+      save(LS.data, data);
+      const missing = list.filter(id => !j.stations[id] || !j.stations[id].taf);
+      if (missing.length) toast('No TAF found for ' + missing.join(', ') + '.');
+    } catch (e) {
+      const when = data.fetchedAt ? ' Showing data fetched ' + ago(data.fetchedAt) + '.' : '';
+      toast('Could not reach the weather service (' + e.message + ').' + when, 6000);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Refresh';
+      render();
+    }
+  }
+  $('refresh').addEventListener('click', refresh);
+
+  async function loadStationList() {
+    let cached = load(LS.stations, null);
+    if (!cached || Date.now() - cached.t > 7 * 24 * H) {
+      try {
+        const r = await fetch('api/wx?list=NO');
+        if (r.ok) { const j = await r.json(); if (j.stations && j.stations.length) { cached = { t: Date.now(), stations: j.stations }; save(LS.stations, cached); } }
+      } catch (e) { /* offline: typed ICAO still works */ }
+    }
+    if (cached) {
+      $('stations').innerHTML = cached.stations.map(s => '<option value="' + esc(s.id) + '">' + esc(s.id + ' ' + s.name + (s.taf ? '' : ' (no TAF)')) + '</option>').join('');
+    }
+  }
+
+  // Sample data relative to now, for trying the page without the /api function
+  function demoData() {
+    const now = Date.now();
+    const f = (h, m) => { const d = new Date(Math.floor(now / H) * H + h * H + (m || 0) * M); return pad(d.getUTCDate()) + pad(d.getUTCHours()); };
+    const z = (h) => { const d = new Date(Math.floor(now / H) * H + h * H); return pad(d.getUTCDate()) + pad(d.getUTCHours()) + '00Z'; };
+    const per = (a, b) => f(a) + '/' + f(b);
+    const st = {
+      ENZV: { name: 'Stavanger/Sola', taf: `TAF ENZV ${z(-1)} ${per(0, 24)} 18015KT 9999 BKN012 BECMG ${per(3, 5)} 4000 RA BKN006 TEMPO ${per(5, 9)} 1200 RA BKN003 FM${f(11)}00 27020KT 9999 SCT020 BKN040=`, metar: `METAR ENZV ${z(0).slice(0, 4)}20Z 18014KT 9999 BKN014 09/06 Q1008=` },
+      ENBR: { name: 'Bergen/Flesland', taf: `TAF ENBR ${z(-1)} ${per(0, 24)} 20012KT 9999 FEW020 SCT045 PROB30 TEMPO ${per(6, 10)} 3000 SHRA BKN010=`, metar: `METAR ENBR ${z(0).slice(0, 4)}20Z 20011KT 9999 FEW022 SCT050 10/05 Q1010=` },
+      ENBS: { name: 'Båtsfjord', taf: `TAF ENBS ${z(-1)} ${per(0, 9)} 20020KT 9999 SCT006 PROB40 TEMPO ${per(0, 8)} 20020G30KT PROB30 TEMPO ${per(0, 3)} BKN006=`, metar: `METAR ENBS ${z(0).slice(0, 4)}20Z 20018KT 9999 SCT008 05/03 Q1024=` },
+      ENTC: { name: 'Tromsø', taf: `TAF ENTC ${z(-1)} ${per(0, 24)} VRB03KT CAVOK BECMG ${per(10, 12)} 0300 FG VV001 BECMG ${per(19, 21)} 9999 NSC=`, metar: `METAR ENTC ${z(0).slice(0, 4)}20Z VRB02KT CAVOK 02/M01 Q1021=` }
+    };
+    const out = { fetchedAt: now, demo: true, stations: {} };
+    for (const id in st) out.stations[id] = Object.assign({ source: 'Sample', tafIssue: now - H, metarTime: now - 10 * M, fetchedAt: now }, st[id]);
+    return out;
+  }
+
+  /* ---------- approaches ---------- */
+  function approachesFor(icao) {
+    const d = AERO_DATA.ap[icao];
+    const pub = d ? d.a.map(a => Object.assign({ id: icao + ':' + a.l, custom: false }, a)) : [];
+    const cus = (custom[icao] || []).map(c => ({ id: 'c:' + icao + ':' + c.id, cid: c.id, l: 'Custom ' + c.t + (c.r ? ' ' + c.r : ''), t: c.t, r: c.r || '', d: c.dh, v: c.rvr, k: 99, custom: true }));
+    return { pub, cus, all: pub.concat(cus) };
+  }
+  const rwyNum = a => parseInt(a.r, 10) || 99;
+
+  /* ---------- per-station computation ---------- */
+  let axis = null;
+  const model = {};
+  function computeAxis() {
+    const now = Date.now();
+    const a0 = now - H;
+    const start = Math.floor((a0 + offMs(a0)) / H) * H - offMs(a0);
+    let end = start + 25 * H;
+    for (const id of list) { const m = model[id]; if (m && m.taf && !m.taf.error) end = Math.max(end, m.taf.valid.to); }
+    end = Math.min(end, start + 33 * H);
+    axis = { start, end };
+  }
+  function computeStation(id) {
+    const s = data.stations[id];
+    const m = { id, s };
+    if (s && s.taf) m.taf = C.parseTAF(s.taf, s.tafIssue || s.fetchedAt || Date.now());
+    if (s && s.metar) m.metar = C.parseMETAR(s.metar);
+    m.ap = approachesFor(id);
+    m.hasMin = m.ap.all.length > 0;
+    m.pool = m.ap.pub.length ? m.ap.pub : m.ap.cus;      // auto-pick uses published approaches when there are any
+    m.off = !!offshore[id] && !AERO_DATA.ap[id];         // offshore installation: never two independent approaches
+    m.iso = !!(AERO_DATA.ap[id] && AERO_DATA.ap[id].iso); // isolated aerodrome: planning minima apply
+    m.indepPub = C.hasIndependent(m.ap.pub);
+    m.indep = m.off ? false : C.hasIndependent(m.ap.all);
+    m.nonGnss = C.hasNonGnss(m.ap.all);
+    // Ceiling for no alternate: your entry, else AIP (highest MSA minus AD elevation, calculated here), else the proxy
+    const ad = AERO_DATA.ap[id];
+    m.msaAip = ad && typeof ad.m === 'number' && typeof ad.e === 'number' && ad.m > ad.e ? ad.m - ad.e : null;
+    m.msaUser = typeof msa[id] === 'number' ? msa[id] : null;
+    m.msa = m.msaUser != null ? m.msaUser : m.msaAip;
+    const msaNote = m.msaUser != null ? '(your MSA entry)' : m.msaAip != null ? '(AIP MSA ' + ad.m + ' ft, AD elevation ' + ad.e + ' ft)' : '';
+    m.cfg = Object.assign({}, cfg, m.msa != null ? { greenCig: m.msa, msaNote } : { msaNote: '' });
+    // PROB30 groups disregarded by the commander apply to this TAF issue only
+    m.skip = new Set();
+    const dd = disc[id];
+    if (dd && (!m.taf || m.taf.error || dd.key !== m.taf.raw)) delete disc[id];
+    if (disc[id]) disc[id].idx.forEach(i => { const g = m.taf.groups[i]; if (g) m.skip.add(g); });
+    model[id] = m;
+  }
+  const ctxFor = (m, forced) => ({ pool: forced ? [forced] : m.pool, forced: !!forced, cfg: m.cfg, indep: m.indep, iso: m.iso, skip: m.skip });
+  function computeGrids() {
+    for (const id of list) {
+      const m = model[id];
+      if (!m) continue;
+      m.gridAuto = null; m.gridBy = {}; m.verdicts = null; m.verdKey = null;
+      if (m.hasMin && m.taf && !m.taf.error) {
+        // pad by 2 h so ETA windows at the edges are evaluated against real data
+        const a = axis.start - 2 * H, b = axis.end + 2 * H;
+        m.gridAuto = C.buildGrid(m.taf, a, b, ctxFor(m, null));
+        for (const ap of m.ap.all) m.gridBy[ap.id] = C.buildGrid(m.taf, a, b, ctxFor(m, ap));
+      }
+    }
+  }
+  function gridIndex(m, t) { return Math.floor((t - m.gridAuto.start) / C.STEP_MS); }
+  function selPin(m) { const p = pin[m.id]; return p && m.ap.all.some(a => a.id === p) ? p : null; }
+  function selGrid(m) { if (!m.gridAuto) return null; const p = selPin(m); return p ? m.gridBy[p] : m.gridAuto; }
+  function ensureVerdicts(m) {
+    const g = selGrid(m); if (!g) return null;
+    const key = (selPin(m) || 'auto') + '|' + flight.ft;
+    if (m.verdKey !== key) { m.verdicts = C.buildVerdicts(g, flight.ft); m.verdKey = key; }
+    return m.verdicts;
+  }
+  const pinnedAp = m => { const p = selPin(m); return p ? m.ap.all.find(a => a.id === p) : null; };
+  const dispTime = () => (flight.eta != null ? flight.eta : Date.now());
+
+  // The approach shown on the button, and its colour, at time T
+  function dispState(m, T) {
+    const pinned = pinnedAp(m);
+    if (m.gridAuto) {
+      const g = selGrid(m), i = gridIndex(m, T), r = g.raw[i];
+      if (r && r.cat !== C.CAT.NODATA) {
+        const v = C.verdictAt(g, i, flight.ft);
+        return { ap: m.ap.all.find(a => a.id === r.apId) || pinned || m.pool[0], cat: v.cat };
+      }
+    } else if (!m.taf && m.metar) {
+      const r = C.evalState(m.metar.state, ctxFor(m, pinned));
+      return { ap: m.ap.all.find(a => a.id === r.apId) || m.pool[0], cat: r.cat };
+    }
+    return { ap: pinned || m.pool.slice().sort((a, b) => (a.k - b.k) || (a.d - b.d))[0], cat: -1 };
+  }
+  // Status of one approach at time T (for the dropdown rows). Colours only once an ETA is set.
+  function rowStatus(m, ap, T) {
+    const etaSet = flight.eta != null;
+    const g = m.gridBy[ap.id];
+    if (g) {
+      const i = gridIndex(m, T), r = g.raw[i];
+      if (r && r.cat !== C.CAT.NODATA) return { cat: etaSet ? C.verdictAt(g, i, flight.ft).cat : -1, wind: r.windFail ? r.windShort : '' };
+      return { cat: -1, wind: '' };
+    }
+    if (!m.taf && m.metar) { const r = C.evalState(m.metar.state, ctxFor(m, ap)); return { cat: etaSet ? r.cat : -1, wind: r.windFail ? r.windShort : '' }; }
+    return { cat: -1, wind: '' };
+  }
+  // Instant result for a weather group (METAR / TAF line colouring)
+  const stateResult = (m, st) => C.evalState(st, ctxFor(m, pinnedAp(m)));
+
+  // Verdict at the ETA for the selected approach
+  function verdictFor(m) {
+    if (!m.hasMin) return null;
+    if (flight.eta == null || !m.gridAuto) return { cat: null, text: m.gridAuto ? 'Set ETA' : 'No TAF' };
+    const v = ensureVerdicts(m)[gridIndex(m, flight.eta)];
+    const c = v ? v.cat : -1;
+    return { cat: c, text: verdictText(c, m) };
+  }
+
+  // Another approach inside the wind limits that would give a better result at the ETA
+  function windText(m, ap, T) {
+    const cs = m.taf ? C.candidatesAt(m.taf, T, m.skip) : null;
+    const w = cs && cs.length ? cs[0].s.wind : null;
+    if (!w) return '';
+    const wc = C.windCheck(w, ap, m.cfg), tw = Math.round(wc.tw), xw = Math.round(wc.xw);
+    if (tw >= 1 && tw >= xw) return 'TW ' + tw + ' kt';
+    if (xw >= 1) return 'XW ' + xw + ' kt';
+    return 'HW ' + Math.max(0, Math.round(wc.hw)) + ' kt';
+  }
+  function betterHint(m, T, d) {
+    if (flight.eta == null || !m.gridAuto || d.cat < 0) return null;
+    let best = null;
+    for (const ap of m.pool) {
+      if (ap.id === d.ap.id) continue;
+      const st = rowStatus(m, ap, T);
+      if (st.wind || st.cat < 0) continue;
+      if (st.cat > d.cat && (!best || st.cat > best.cat)) best = { ap, cat: st.cat };
+    }
+    if (!best) return null;
+    const wt = windText(m, best.ap, T);
+    return { ap: best.ap, text: 'Better: ' + best.ap.l + (wt ? ' (' + wt + ')' : '') + ' gives ' + catWords(best.cat) };
+  }
+
+  /* ---------- drawing ---------- */
+  function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+  function mix(a, b, f) { const A = hexToRgb(a), B = hexToRgb(b); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * f)).join(',') + ')'; }
+
+  function draw(id) {
+    const m = model[id]; const cv = document.querySelector('canvas[data-id="' + id + '"]');
+    if (!cv || !m) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth, Hh = cv.clientHeight;
+    if (!W) return;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr);
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, Hh);
+    const x = t => (t - axis.start) / (axis.end - axis.start) * W;
+    const yRaw = 10, hRaw = 6, yBar = 20, hBar = 26, yAxis = yBar + hBar + 4;
+    const sg = selGrid(m), vs = ensureVerdicts(m);
+
+    const partPx = [];
+    for (let px = 0; px < W; px++) {
+      const t = axis.start + (px + 0.5) / W * (axis.end - axis.start);
+      let rawC = -1, vc = -1, sh = 0, part = false;
+      if (sg) {
+        const i = gridIndex(m, t);
+        const r = sg.raw[i], v = vs[i];
+        if (r) { rawC = r.cat; vc = v.cat; sh = v.shoulder || 0; part = !!v.partial; }
+      }
+      g.fillStyle = COLORS[rawC];
+      g.fillRect(px, yRaw, 1, hRaw);
+      // verdict bar: shoulders keep the worse colour, blending toward the better one at the window edge
+      g.fillStyle = sh > 0 ? mix(COLORS[vc], COLORS[Math.min(3, vc + 1)], sh * 0.6) : COLORS[vc];
+      g.fillRect(px, yBar, 1, hBar);
+      if (part) partPx.push(px);
+    }
+    // hatch where the ETA window runs past the end of the TAF
+    if (partPx.length) {
+      g.save(); g.beginPath();
+      for (const px of partPx) g.rect(px, yBar, 1, hBar);
+      g.clip();
+      g.strokeStyle = 'rgba(11,14,20,.6)'; g.lineWidth = 2;
+      for (let k = partPx[0] - hBar; k < partPx[partPx.length - 1] + hBar; k += 7) { g.beginPath(); g.moveTo(k, yBar + hBar); g.lineTo(k + hBar, yBar); g.stroke(); }
+      g.restore();
+    }
+    // TAF validity edge shading
+    if (m.taf && !m.taf.error) {
+      g.fillStyle = 'rgba(11,14,20,.55)';
+      const b = x(m.taf.valid.to);
+      if (b < W) g.fillRect(b, yRaw, W - b, yBar + hBar - yRaw);
+    }
+
+    // axis (local time)
+    g.font = '10px "IBM Plex Mono", monospace'; g.textBaseline = 'top';
+    const t0 = Math.ceil((axis.start + offMs(axis.start)) / H) * H - offMs(axis.start);
+    for (let t = t0; t <= axis.end; t += H) {
+      const px = Math.round(x(t)) + 0.5;
+      const d = lt(t), hr = d.getUTCHours();
+      g.strokeStyle = hr === 0 ? '#7d8799' : '#2c3546';
+      g.beginPath(); g.moveTo(px, yAxis); g.lineTo(px, yAxis + (hr % 3 === 0 ? 5 : 3)); g.stroke();
+      if (hr % 3 === 0 && px > 8 && px < W - 14) {
+        g.fillStyle = hr === 0 ? '#d7dde8' : '#7d8799';
+        const lbl = hr === 0 ? pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) : pad(hr) + ':00';
+        g.textAlign = 'center'; g.fillText(lbl, px, yAxis + 7);
+      }
+    }
+
+    // ETA window bracket (±1 h solid; faint line = +75kg fuel window, starting at departure if that is later)
+    if (flight.eta != null) {
+      const e = x(flight.eta);
+      const left2 = flight.dep != null ? Math.max(flight.eta - 2 * H, flight.dep) : flight.eta - 2 * H;
+      g.strokeStyle = 'rgba(255,255,255,.28)'; g.setLineDash([2, 3]);
+      g.beginPath(); g.moveTo(x(left2), 4); g.lineTo(x(flight.eta + 2 * H), 4); g.stroke();
+      g.setLineDash([]);
+      g.strokeStyle = 'rgba(255,255,255,.75)';
+      g.beginPath(); g.moveTo(x(flight.eta - H), 2); g.lineTo(x(flight.eta - H), 7); g.lineTo(x(flight.eta + H), 7); g.lineTo(x(flight.eta + H), 2); g.stroke();
+      g.fillStyle = '#fff'; g.fillRect(Math.round(e) - 1, 2, 2, yBar + hBar);
+    }
+    if (flight.dep != null) {
+      const d = Math.round(x(flight.dep));
+      g.fillStyle = '#4ea8de'; g.fillRect(d - 1, yBar - 2, 2, hBar + 4);
+      g.beginPath(); g.moveTo(d - 4, yBar + hBar + 2); g.lineTo(d + 4, yBar + hBar + 2); g.lineTo(d, yBar + hBar - 3); g.fill();
+    }
+    // now
+    const n = Math.round(x(Date.now())) + 0.5;
+    g.strokeStyle = '#d7dde8'; g.setLineDash([3, 2]);
+    g.beginPath(); g.moveTo(n, yRaw - 2); g.lineTo(n, yBar + hBar + 2); g.stroke(); g.setLineDash([]);
+    // inspect cursor
+    if (inspect[id] != null) {
+      const c = Math.round(x(inspect[id])) + 0.5;
+      g.strokeStyle = '#4ea8de'; g.beginPath(); g.moveTo(c, 0); g.lineTo(c, yBar + hBar + 2); g.stroke();
+    }
+  }
+
+  function describe(m, at, asEta) {
+    const sg = selGrid(m), vs = ensureVerdicts(m);
+    if (!sg) return '';
+    const i = gridIndex(m, at);
+    const r = sg.raw[i], v = vs[i];
+    if (!r || !v) return '';
+    const note = v.partial && m.taf ? ' The ETA window runs past the end of the TAF (' + hhmm(m.taf.valid.to) + '), so this uses the forecast available.' : '';
+    const src = x => (x && x.src ? (x.src.kind === 'BASE' ? 'Main forecast' : x.src.label) : 'TAF');
+    const apn = x => (x && x.apL ? ' ' + esc(x.apL) : '');
+    if (!asEta) {
+      let s = '<b>' + hhmm(at) + '</b>' + (r.cat >= 0 ? ' ·' + apn(r) : '') + ' forecast ' + catName(r.cat, m) + (r.factor ? ', ' + esc(r.factor) : '') + (r.src ? ' (' + esc(src(r)) + ')' : '');
+      s += '. As ETA: <b>' + catName(v.cat, m) + '</b>';
+      return s + '.' + note;
+    }
+    if (v.cat < 0) return 'No TAF at ETA ' + hhmm(at) + '.';
+    let s = '<b>ETA ' + hhmm(at) + '</b> ·' + apn(r);
+    const cause = v.cause;
+    if (cause && v.causeIdx != null && v.causeIdx !== i) {
+      const off = (v.causeIdx - i) * C.STEP_MIN;
+      const when = off > 0 ? Math.abs(off) + ' min after ETA' : Math.abs(off) + ' min before ETA';
+      s += ' limited by ' + esc(src(cause)) + (cause.apL && cause.apL !== r.apL ? ' (' + esc(cause.apL) + ')' : '') + (cause.factor ? ': ' + esc(cause.factor) : '') + ', ' + when + '.';
+    } else if (cause && cause.factor) {
+      s += ' limited by ' + esc(src(cause)) + ': ' + esc(cause.factor) + '.';
+    } else s += ' clear of all limits.';
+    const ab = !m.iso && !m.off ? C.altBelowAt(sg, i) : null;
+    if (ab) {
+      const off = (ab.idx - i) * C.STEP_MIN;
+      s += ' <span class="altw">Below alternate minima: ' + esc(ab.factor) + (off === 0 ? ', at ETA' : ', ' + Math.abs(off) + ' min ' + (off > 0 ? 'after' : 'before') + ' ETA') + '.</span>';
+    }
+    return s + note;
+  }
+
+  /* ---------- approach button and dropdown ---------- */
+  const typeTxt = ap => (ap.t === 'LPV' ? 'LPV' : ap.t);
+  function buttonHTML(m, T) {
+    const d = dispState(m, T), ap = d.ap, pinned = selPin(m);
+    const etaSet = flight.eta != null;
+    const neutral = !etaSet || d.cat < 0;
+    const style = neutral ? '' : ' style="background:' + COLORS[d.cat] + '"';
+    return '<button class="apbtn' + (neutral ? ' neutral' : '') + '"' + style + ' data-act="menu" aria-haspopup="true" aria-expanded="' + (ui.menu === m.id) + '">' +
+      '<span class="abody"><span class="al">' + esc(ap.l) + (ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
+      '<span class="as">' + esc(typeTxt(ap)) + ' · DH ' + ap.d + ' · RVR ' + ap.v + (ap.lt ? ' ' + ap.lt : '') + ' · ' + (pinned ? 'PINNED' : 'AUTO') + (etaSet ? '' : ' · set ETA for the result') + '</span></span>' + CHEV + '</button>';
+  }
+  function menuHTML(m, T) {
+    const pinId = selPin(m);
+    let h = '<div class="aprow auto' + (!pinId ? ' sel' : '') + '" role="button" tabindex="0" data-act="auto"><div class="body"><div class="t1">Auto</div><div class="t2">Runway by wind, then the lowest minima on it.</div></div></div>';
+    const rows = m.ap.all.slice().sort((a, b) => (a.custom - b.custom) || (rwyNum(a) - rwyNum(b)) || (a.k - b.k));
+    for (const ap of rows) {
+      const st = rowStatus(m, ap, T);
+      const sub = typeTxt(ap) + ' · DH ' + ap.d + ' · RVR ' + ap.v + (ap.lt ? ' ' + ap.lt : '') + (ap.o ? ' · OCH ' + ap.o : '') + (ap.n ? ' · ' + ap.n : '');
+      h += '<div class="aprow' + (pinId === ap.id ? ' sel' : '') + '" role="button" tabindex="0" data-act="pin" data-ap="' + esc(ap.id) + '">' +
+        '<span class="sw2" style="background:' + COLORS[st.cat] + '"></span>' +
+        '<div class="body"><div class="t1">' + esc(ap.l) + (ap.custom ? WARN : '') + '</div><div class="t2">' + esc(sub) + '</div></div>' +
+        '<span class="st" style="color:' + (st.wind ? COLORS[0] : st.cat < 0 ? '#7d8799' : COLORS[st.cat]) + '">' + esc(st.wind || (flight.eta == null ? '' : shortCat(st.cat, m))) + '</span>' +
+        (ap.custom ? '<span class="ed" role="button" tabindex="0" aria-label="Edit custom approach" data-act="editcustom" data-cid="' + esc(ap.cid) + '">Edit</span>' : '') + '</div>';
+    }
+    h += '<button class="aprow add" data-act="addcustom">+ Add custom approach</button>';
+    h += '<button class="aprow add" data-act="editmsa">' + (m.msaUser != null ? WARN + 'Ceiling for no alternate: ' + m.msaUser + ' ft (yours)'
+      : m.msaAip != null ? 'Ceiling for no alternate: ' + m.msaAip + ' ft (AIP). Tap to override'
+      : 'No MSA data. Set ceiling for no alternate') + '</button>';
+    return h;
+  }
+
+  /* ---------- editors ---------- */
+  function editorHTML(id) {
+    if (!ui.edit || ui.edit.icao !== id) return '';
+    const d = ui.draft, m = model[id];
+    if (ui.edit.mode === 'msa') {
+      return '<div class="editor"><div class="eh">' + WARN + '<b>Ceiling for no alternate</b></div>' +
+        '<label class="one">Ceiling above aerodrome (ft)<input data-f="msa" type="number" inputmode="numeric" min="0" step="100" placeholder="' + (m && m.msaAip != null ? 'AIP: ' + m.msaAip : 'e.g. 2500') + '" value="' + esc(d.msa) + '"></label>' +
+        '<div class="erow"><button class="btn primary" data-act="savemsa">Save</button><button class="btn" data-act="cancelcustom">Cancel</button>' +
+        (m && m.msaUser != null ? '<button class="btn danger" data-act="clearmsa">Clear</button>' : '') + '</div>' +
+        '<p class="note">' + (m && m.msaAip != null ? 'AIP value: ' + m.msaAip + ' ft (highest MSA ' + AERO_DATA.ap[id].m + ' ft minus AD elevation ' + AERO_DATA.ap[id].e + ' ft). Your entry overrides it. Clear returns to the AIP value. ' : 'MSA minus aerodrome elevation. Use the highest sector value to stay on the safe side. It replaces the ' + cfg.greenCig + ' ft proxy for this aerodrome. ') + 'Never lower than DH + 400 ft. User entered, stored on this device only.</p></div>';
+    }
+    const noData = !AERO_DATA.ap[id];
+    return '<div class="editor"><div class="eh">' + WARN + '<b>Custom minima</b></div>' +
+      '<div class="grid2">' +
+      '<label>Approach type<select data-f="t">' + TYPES.map(t => '<option' + (d.t === t ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></label>' +
+      '<label>Runway (optional)<input data-f="r" type="text" maxlength="3" placeholder="e.g. 04" autocomplete="off" autocapitalize="characters" spellcheck="false" value="' + esc(d.r) + '"></label>' +
+      '<label>DH / MDH (ft)<input data-f="dh" type="number" inputmode="numeric" min="0" step="10" value="' + esc(d.dh) + '"></label>' +
+      '<label>RVR / VIS (m)<input data-f="rvr" type="number" inputmode="numeric" min="0" step="50" value="' + esc(d.rvr) + '"></label></div>' +
+      (noData ? '<label class="chk"><input type="checkbox" data-f="off"' + (d.off ? ' checked' : '') + '><span>Offshore installation. It never has two independent approaches, so +75kg fuel is not possible.</span></label>' : '') +
+      '<div class="erow"><button class="btn primary" data-act="savecustom">Save</button><button class="btn" data-act="cancelcustom">Cancel</button>' +
+      (ui.edit.cid ? '<button class="btn danger" data-act="delcustom">Delete</button>' : '') + '</div>' +
+      '<p class="note">User entered, not from AIP. Stored on this device only. ' + (m && m.ap.pub.length ? 'Once saved it is selected here; tap Auto in the approach list to go back.' : 'Used to colour this aerodrome.') + ' A runway lets the wind limits apply.</p></div>';
+  }
+  function openEditor(icao, cid) {
+    ui.menu = null;
+    if (cid) {
+      const c = (custom[icao] || []).find(x => x.id === cid);
+      if (!c) return;
+      ui.edit = { icao, cid, mode: 'custom' }; ui.draft = { t: c.t, r: c.r || '', dh: String(c.dh), rvr: String(c.rvr), off: !!offshore[icao] };
+    } else { ui.edit = { icao, cid: null, mode: 'custom' }; ui.draft = { t: 'ILS', r: '', dh: '200', rvr: '550', off: !!offshore[icao] }; }
+    render();
+  }
+  function openMsa(icao) {
+    ui.menu = null;
+    ui.edit = { icao, cid: null, mode: 'msa' };
+    ui.draft = { msa: typeof msa[icao] === 'number' ? String(msa[icao]) : '' };
+    render();
+  }
+  function saveCustom() {
+    const { icao, cid } = ui.edit, d = ui.draft;
+    let r = String(d.r || '').trim().toUpperCase();
+    if (r) {
+      const mm = /^(\d{1,2})([LRC]?)$/.exec(r);
+      if (!mm || +mm[1] < 1 || +mm[1] > 36) { toast('Runway should be 01 to 36, for example 04 or 22L.'); return; }
+      r = pad(+mm[1]) + mm[2];
+    }
+    const dh = Math.round(+d.dh), rvr = Math.round(+d.rvr);
+    if (d.dh === '' || !isFinite(dh) || dh < 0 || dh > 5000) { toast('Enter DH/MDH in feet (0 to 5000).'); return; }
+    if (d.rvr === '' || !isFinite(rvr) || rvr < 0 || rvr > 10000) { toast('Enter RVR/VIS in metres (0 to 10000).'); return; }
+    const arr = custom[icao] = custom[icao] || [];
+    let newId = cid;
+    if (cid) { const x = arr.find(a => a.id === cid); if (x) Object.assign(x, { t: d.t, r, dh, rvr }); }
+    else { newId = 'u' + Date.now().toString(36); arr.push({ id: newId, t: d.t, r, dh, rvr }); }
+    save(LS.custom, custom);
+    if (!AERO_DATA.ap[icao]) { if (d.off) offshore[icao] = true; else delete offshore[icao]; save(LS.off, offshore); }
+    if (AERO_DATA.ap[icao]) pin[icao] = 'c:' + icao + ':' + newId;   // use it straight away at aerodromes with published data
+    ui.edit = null; ui.draft = null;
+    render();
+  }
+  function deleteCustom() {
+    const { icao, cid } = ui.edit;
+    custom[icao] = (custom[icao] || []).filter(a => a.id !== cid);
+    if (!custom[icao].length) delete custom[icao];
+    if (pin[icao] === 'c:' + icao + ':' + cid) delete pin[icao];
+    save(LS.custom, custom);
+    ui.edit = null; ui.draft = null;
+    render();
+  }
+  function saveMsa() {
+    const { icao } = ui.edit, v = ui.draft.msa;
+    const n = Math.round(+v);
+    if (v === '' || !isFinite(n) || n < 0 || n > 20000) { toast('Enter the ceiling in feet above the aerodrome (0 to 20000).'); return; }
+    msa[icao] = n; save(LS.msa, msa);
+    ui.edit = null; ui.draft = null;
+    render();
+  }
+  function clearMsa() {
+    delete msa[ui.edit.icao]; save(LS.msa, msa);
+    ui.edit = null; ui.draft = null;
+    render();
+  }
+
+  /* ---------- card updates ---------- */
+  function updateCardDynamic(id) {
+    const m = model[id];
+    const card = document.querySelector('.card[data-id="' + id + '"]');
+    if (!card || !m || !m.hasMin) return;
+    const T = dispTime();
+    const wrap = card.querySelector('.apbtnwrap'), menu = card.querySelector('.apmenu');
+    const d = dispState(m, T);
+    if (wrap) wrap.innerHTML = buttonHTML(m, T);
+    if (menu) { menu.hidden = ui.menu !== id; if (!menu.hidden) menu.innerHTML = menuHTML(m, T); }
+    const badge = card.querySelector('.vbadge'), sub = card.querySelector('.vsub'), ro = card.querySelector('.readout');
+    const notes = card.querySelector('.notes'), altag = card.querySelector('.altag'), disctag = card.querySelector('.disctag');
+    const vf = verdictFor(m);
+    const vcat = vf && vf.cat != null ? vf.cat : null;
+    if (vcat != null) {
+      badge.className = 'vbadge'; badge.style.background = COLORS[vcat];
+      badge.textContent = vf.text;
+      sub.innerHTML = 'at ETA ' + hhmm(flight.eta) + (d.ap && d.ap.custom ? ' ' + WARN : '');
+    } else {
+      badge.className = 'vbadge none'; badge.style.background = '';
+      badge.textContent = vf ? vf.text : '';
+      sub.textContent = '';
+    }
+    // below alternate minima within ETA +/- 1 h
+    const ab = flight.eta != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, flight.eta)) : null;
+    altag.hidden = !ab;
+    const n = m.skip ? m.skip.size : 0;
+    disctag.hidden = !n; disctag.textContent = n + ' PROB30 disregarded';
+    // notes under the approach button
+    const lines = [];
+    const bh = betterHint(m, T, d);
+    if (bh) lines.push('<button class="better" data-act="pin" data-ap="' + esc(bh.ap.id) + '">' + esc(bh.text) + '</button>');
+    if (vcat != null && vcat >= 0 && vcat <= 1 && !m.nonGnss) lines.push('PBN: the alternate must have a non-GNSS approach.');
+    if (vcat === 2 && !m.indepPub && m.indep) lines.push(WARN + ' ' + C.FUEL + ' relies on your custom approach as the second independent approach.');
+    if (m.msaUser != null) lines.push(WARN + ' Ceiling for no alternate set by you: ' + m.msaUser + ' ft.');
+    if (m.msa == null) lines.push('No MSA data: the no-alternate ceiling uses the ' + cfg.greenCig + ' ft proxy.');
+    notes.innerHTML = lines.map(l => '<div class="nl">' + l + '</div>').join('');
+    if (inspect[id] != null) ro.innerHTML = describe(m, inspect[id], false);
+    else if (flight.eta != null) ro.innerHTML = describe(m, flight.eta, true);
+    else ro.innerHTML = m.gridAuto ? 'Tap the timeline to inspect a time.' : '';
+    const how = card.querySelector('.howread');
+    if (how) how.innerHTML = howHTML(m);
+    draw(id);
+  }
+  function drawAll() { for (const id of list) updateCardDynamic(id); renderSummary(); }
+
+  /* ---------- summary strip ---------- */
+  function renderSummary() {
+    const el = $('summary');
+    if (ui.reorder || !list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
+    const T = dispTime();
+    el.innerHTML = list.map(id => {
+      const m = model[id];
+      if (!m) return '';
+      if (!m.hasMin) return '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap muted">No minima data</span></button>';
+      const d = dispState(m, T), vf = verdictFor(m);
+      const bg = vf && vf.cat != null && vf.cat >= 0 ? COLORS[vf.cat] : null;
+      return '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap">' + esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
+        '<span class="sbd' + (bg ? '' : ' none') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + esc(vf ? vf.text : '') + '</span></button>';
+    }).join('');
+  }
+  $('summary').addEventListener('click', e => {
+    const b = e.target.closest('[data-goto]');
+    if (!b) return;
+    const card = document.querySelector('.card[data-id="' + b.dataset.goto + '"]');
+    if (card) card.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+  });
+
+  /* ---------- rendering ---------- */
+  function pillHTML(text, m, st, opt) {
+    const btn = opt && m.hasMin ? '<button class="disc" data-act="disc" data-g="' + opt.gi + '">' + (opt.off ? 'Include' : 'Disregard') + '</button>' : '';
+    if (opt && opt.off) return '<div class="pill off">' + esc(text) + btn + '</div>';
+    if (!m.hasMin) return '<div class="pill neutral">' + esc(text) + btn + '</div>';
+    const r = stateResult(m, st);
+    const tag = r.cat === 2 ? '<span class="tag">' + C.FUEL.toUpperCase() + '</span>' : '';
+    const title = r.apL + ': ' + catName(r.cat, m) + (r.factor ? ', ' + r.factor : '');
+    return '<div class="pill" style="background:' + COLORS[r.cat] + '" title="' + esc(title) + '">' + esc(text) + tag + btn + '</div>';
+  }
+  function groupText(g, taf) {
+    if (g.kind === 'BASE') {
+      const vf = new Date(taf.valid.from), vt = new Date(taf.valid.to);
+      return pad(vf.getUTCDate()) + pad(vf.getUTCHours()) + '/' + pad(vt.getUTCDate()) + pad(vt.getUTCHours() || 24) + ' ' + g.tokens.join(' ');
+    }
+    return g.label + ' ' + g.tokens.join(' ');
+  }
+
+  // "How this was read": each period as the app understood it
+  function howHTML(m) {
+    if (!m.taf || m.taf.error) return '';
+    const windTxt = w => !w ? 'not given' : w.dir === 'VRB' ? 'variable ' + w.spd + ' kt' : w.spd === 0 ? 'calm' : w.dir + '° ' + w.spd + ' kt' + (w.gust ? ' gusting ' + w.gust : '');
+    const visTxt = s => (s.cavok ? 'CAVOK' : s.vis >= 10000 ? '10 km or more' : s.vis + ' m');
+    const cigTxt = s => (s.cig >= 99999 ? 'no ceiling' : 'ceiling ' + s.cig + ' ft' + (s.cigText ? ' (' + s.cigText + ')' : ''));
+    const noteFor = (g, off) => {
+      if (off) return 'Disregarded by you, not counted.';
+      if (g.kind === 'BASE') return 'Main forecast, applies unless a later group changes it.';
+      if (g.kind === 'FM') return 'FM: these conditions apply from this time.';
+      if (g.kind === 'BECMG') return 'BECMG: the worse of old and new counts until the change period ends.';
+      return g.label.split(' ')[0] + (g.kind === 'PROBTEMPO' ? ' TEMPO' : '') + ': counts in full while it applies' + (g.prob === 30 ? ' (you can disregard it).' : '.');
+    };
+    let h = '';
+    m.taf.groups.forEach(g => {
+      if (!g.state) return;
+      const off = m.skip && m.skip.has(g);
+      h += '<div class="hr"><div class="hh">' + esc(groupText(g, m.taf)) + '</div><div class="hn">' + esc(noteFor(g, off)) + '</div>' +
+        '<div class="hv">wind ' + esc(windTxt(g.state.wind)) + ' · visibility ' + esc(visTxt(g.state)) + ' · ' + esc(cigTxt(g.state)) + '</div>';
+      if (m.hasMin && !off) {
+        const r = stateResult(m, g.state);
+        h += '<div class="hres" style="color:' + COLORS[r.cat] + '">→ ' + esc(r.apL) + ': ' + esc(catName(r.cat, m)) + (r.factor ? ', ' + esc(r.factor) : '') + '</div>';
+      }
+      h += '</div>';
+    });
+    return h + (m.hasMin ? '<div class="hn">Results use the approach on the button, group by group, without ETA windows.</div>' : '');
+  }
+
+  function cardHTML(id) {
+    const m = model[id]; const s = m.s || {};
+    const ad = AERO_DATA.ap[id];
+    let h = '<article class="card" data-id="' + id + '">';
+    const nm = s.name || (ad && ad.n) || (s.taf || s.metar ? '' : 'No data yet');
+    const tags = [nm, m.off ? 'offshore installation' : '', m.iso ? 'isolated' : ''].filter(Boolean).join(' · ');
+    h += '<div class="chead"><div><div class="icao">' + id + '</div><div class="sname">' + esc(tags) + '</div></div>';
+    if (m.hasMin) h += '<div class="verdict"><div class="vbadge none"></div><div class="vsub"></div><div class="altag" hidden>BELOW ALTN MINIMA</div><div class="disctag" hidden></div></div>';
+    h += '<button class="rm" data-act="rm" aria-label="Remove ' + id + '">×</button></div>';
+    if (m.hasMin) {
+      h += '<div class="appr"><div class="apbtnwrap"></div><div class="apmenu" hidden></div></div><div class="notes"></div>';
+    } else {
+      h += '<div class="nomin"><span>No minima data</span><button class="btn" data-act="enter">Enter minima</button></div>';
+    }
+    h += editorHTML(id);
+    if (m.metar) {
+      const old = s.metarTime && Date.now() - s.metarTime > 30 * M;
+      h += '<div class="metar"><div class="lbl"><span>METAR</span><span class="' + (old ? 'stale' : '') + '">' + (s.metarTime ? 'obs ' + ago(s.metarTime) : esc(m.metar.time || '')) + '</span></div>';
+      h += pillHTML(m.metar.raw.replace(/^(METAR|SPECI)\s+\S+\s+/, '').replace(/=$/, ''), m, m.metar.state) + '</div>';
+    }
+    if (m.hasMin) h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
+    if (m.taf && !m.taf.error) {
+      h += '<div class="lbl tafl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="pills">';
+      m.taf.groups.forEach((g, gi) => { if (g.state) h += pillHTML(groupText(g, m.taf), m, g.state, g.prob === 30 ? { gi, off: m.skip.has(g) } : null); });
+      h += '</div><details class="rawd"><summary>Show raw TAF</summary><div class="raw">' + esc(m.taf.raw) + '</div></details>';
+      h += '<details class="rawd"><summary>How this was read</summary><div class="howread">' + howHTML(m) + '</div></details>';
+    } else if (m.taf && m.taf.error) {
+      h += '<div class="err">Could not decode TAF (' + esc(m.taf.error) + ').</div><div class="raw">' + esc(m.taf.raw) + '</div>';
+    } else if (s.fetchedAt) {
+      h += '<div class="err">No TAF available for ' + id + '.</div>';
+    }
+    return h + '</article>';
+  }
+
+  function render() {
+    for (const id of list) computeStation(id);
+    computeAxis(); computeGrids();
+    if (list.length < 2) ui.reorder = false;
+    $('sumHead').hidden = list.length < 2 || !Object.keys(data.stations).length;
+    $('reorderBtn').textContent = ui.reorder ? 'Done' : 'Reorder';
+    $('reorderBtn').classList.toggle('primary', ui.reorder);
+    const cards = $('cards');
+    if (!list.length) {
+      cards.innerHTML = '<div class="empty">No aerodromes yet. Add one below.</div>';
+    } else if (!Object.keys(data.stations).length) {
+      cards.innerHTML = '<div class="empty">No weather loaded yet.<br><br><button class="btn primary" id="emptyRefresh">Refresh</button> <button class="btn" id="demoBtn">Load sample data</button></div>';
+      $('emptyRefresh').onclick = refresh;
+      $('demoBtn').onclick = () => { data = demoData(); list = Object.keys(data.stations); save(LS.list, list); render(); };
+    } else if (ui.reorder) {
+      cards.innerHTML = reorderHTML();
+    } else {
+      cards.innerHTML = list.map(cardHTML).join('');
+      cards.querySelectorAll('canvas').forEach(cv => {
+        const id = cv.dataset.id;
+        const pick = ev => {
+          const r = cv.getBoundingClientRect();
+          const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+          inspect[id] = axis.start + Math.max(0, Math.min(1, px / r.width)) * (axis.end - axis.start);
+          updateCardDynamic(id);
+        };
+        cv.addEventListener('click', ev => {
+          if (inspect[id] != null && Math.abs((ev.clientX - cv.getBoundingClientRect().left) / cv.clientWidth * (axis.end - axis.start) + axis.start - inspect[id]) < 15 * M) { delete inspect[id]; updateCardDynamic(id); }
+          else pick(ev);
+        });
+      });
+    }
+    renderAge(); renderMinNote(); drawAll();
+  }
+
+  /* ---------- card events (delegated) ---------- */
+  $('cards').addEventListener('click', e => {
+    e.__inAppr = !!e.target.closest('.appr');   // remember before the button is re-drawn (the target gets detached)
+    const t = e.target.closest('[data-act]');
+    if (!t) return;
+    const card = t.closest('.card'); const id = card ? card.dataset.id : null;
+    switch (t.dataset.act) {
+      case 'warn': toast('User entered, not from AIP.'); break;
+      case 'menu': { const prev = ui.menu; ui.menu = prev === id ? null : id; if (prev && prev !== id) updateCardDynamic(prev); updateCardDynamic(id); break; }
+      case 'pin': pin[id] = t.dataset.ap; ui.menu = null; updateCardDynamic(id); break;
+      case 'auto': delete pin[id]; ui.menu = null; updateCardDynamic(id); break;
+      case 'addcustom': case 'enter': openEditor(id, null); break;
+      case 'editcustom': openEditor(id, t.dataset.cid); break;
+      case 'editmsa': openMsa(id); break;
+      case 'savecustom': saveCustom(); break;
+      case 'savemsa': saveMsa(); break;
+      case 'clearmsa': clearMsa(); break;
+      case 'cancelcustom': ui.edit = null; ui.draft = null; render(); break;
+      case 'delcustom': deleteCustom(); break;
+      case 'disc': {
+        const m = model[id]; if (!m || !m.taf) break;
+        const gi = +t.dataset.g;
+        const dd = disc[id] && disc[id].key === m.taf.raw ? disc[id] : (disc[id] = { key: m.taf.raw, idx: [] });
+        const k = dd.idx.indexOf(gi);
+        if (k >= 0) dd.idx.splice(k, 1); else dd.idx.push(gi);
+        if (!dd.idx.length) delete disc[id];
+        render(); break;
+      }
+      case 'rm': list = list.filter(x => x !== id); save(LS.list, list); if (ui.menu === id) ui.menu = null; if (ui.edit && ui.edit.icao === id) { ui.edit = null; ui.draft = null; } render(); break;
+    }
+  });
+  $('cards').addEventListener('keydown', e => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.aprow[role=button], .ed[role=button]')) { e.preventDefault(); e.target.click(); }
+  });
+  const onField = e => {
+    const f = e.target.dataset && e.target.dataset.f;
+    if (!f || !ui.draft) return;
+    if (e.target.type === 'checkbox') {
+      ui.draft[f] = e.target.checked;
+      if (f === 'off' && e.target.checked && ui.draft.t === 'ILS') { ui.draft.t = 'ARA'; render(); }   // a rig has no ILS: suggest ARA
+    } else ui.draft[f] = e.target.value;
+  };
+  $('cards').addEventListener('input', onField);
+  $('cards').addEventListener('change', onField);
+  document.addEventListener('click', e => {
+    if (ui.menu && !e.__inAppr && !e.target.closest('.appr')) { const prev = ui.menu; ui.menu = null; updateCardDynamic(prev); }
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && ui.menu) { const prev = ui.menu; ui.menu = null; updateCardDynamic(prev); }
+    else if (e.key === 'Escape' && ui.reorder && !drag) { ui.reorder = false; render(); }
+  });
+
+  function renderAge() {
+    const el = $('age');
+    if (data.demo) { el.textContent = 'Sample data'; el.className = 'age stale'; return; }
+    if (!data.fetchedAt) { el.textContent = ''; return; }
+    el.textContent = 'Fetched ' + ago(data.fetchedAt);
+    el.className = 'age' + (Date.now() - data.fetchedAt > 30 * M ? ' stale' : '');
+  }
+  function renderMinNote() {
+    const cycles = Math.floor((Date.now() - AERO_DATA.airacMs) / (28 * 86400e3));
+    const el = $('minNote');
+    $('minMissing').hidden = !(dataMissing || dataSchemaBad);
+    $('minMissing').textContent = dataMissing ? 'minima.js did not load, so there are no approach minima or MSA. Check that minima.js is in the repo next to index.html.' : 'minima.js is not the version this page expects. Replace it with the matching file.';
+    if (dataMissing) { el.textContent = 'No approach minima loaded.'; el.className = 'minnote stale'; return; }
+    el.textContent = 'Approach minima and MSA: AIP, AIRAC ' + AERO_DATA.airac + ' (DH floor 200 ft, RVR by DH and approach lights, highest MSA).' + (cycles >= 1 ? ' ' + cycles + ' AIRAC cycle' + (cycles > 1 ? 's' : '') + ' old, verify.' : '');
+    el.className = 'minnote' + (cycles >= 1 ? ' stale' : '');
+  }
+  function renderLegend() {
+    $('legend').innerHTML =
+      '<span><i class="sw" style="background:' + COLORS[3] + '"></i>No alternate</span>' +
+      '<span><i class="sw" style="background:' + COLORS[2] + '"></i>' + esc(C.FUEL) + '</span>' +
+      '<span><i class="sw" style="background:' + COLORS[1] + '"></i>1 alternate</span>' +
+      '<span><i class="sw" style="background:' + COLORS[0] + '"></i>2 alternates</span>' +
+      '<span><i class="sw" style="background:repeating-linear-gradient(135deg,#7d8799 0 2px,#232b3a 2px 4px)"></i>TAF ends within ETA window</span>' +
+      '<span>' + WARN + 'User entered</span>';
+    $('mNote').textContent = 'DH and RVR come from the approach data (RVR from AMC6 CAT.OP.MPA.110 Table 23 by DH and approach lights, 800 m minimum for LOC) or your custom entry. The ceiling for no alternate is the highest MSA minus AD elevation (AIP), never below DH + 400 ft. Without MSA data the ' + cfg.greenCig + ' ft proxy applies and the aerodrome shows NO MSA. DH 250 ft or more also needs a ceiling at or above DH for one alternate.';
+  }
+
+  /* ---------- reorder aerodromes (drag handles) ---------- */
+  const GRIP = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>';
+  function reorderHTML() {
+    let h = '<div class="reorder" id="reorderList"><p class="note">Drag the handle on the right to change the order. With a handle selected, the up and down arrow keys move it. Tap Done when finished.</p>';
+    for (const id of list) {
+      const nm = (data.stations[id] && data.stations[id].name) || (AERO_DATA.ap[id] && AERO_DATA.ap[id].n) || '';
+      h += '<div class="rrow" data-id="' + id + '"><span class="ric">' + id + '</span><span class="rnm">' + esc(nm) + '</span>' +
+        '<button class="grip" aria-label="Move ' + id + '. Use the up and down arrow keys, or drag.">' + GRIP + '</button></div>';
+    }
+    return h + '</div>';
+  }
+  let drag = null;
+  function commitOrder() {
+    const ids = [...$('cards').querySelectorAll('.rrow')].map(r => r.dataset.id);
+    if (ids.length === list.length && ids.join() !== list.join()) { list = ids; save(LS.list, list); }
+  }
+  function updateDrag() {
+    const row = drag.row;
+    for (let guard = 0; guard < 60; guard++) {
+      const dy = drag.lastY - drag.startY + (window.scrollY - drag.scroll0);
+      const center = row.offsetTop + row.offsetHeight / 2 + dy;
+      const next = row.nextElementSibling, prev = row.previousElementSibling;
+      if (next && next.classList.contains('rrow') && center > next.offsetTop + next.offsetHeight / 2) {
+        const before = row.offsetTop; row.parentNode.insertBefore(next, row); drag.startY += row.offsetTop - before; continue;
+      }
+      if (prev && prev.classList.contains('rrow') && center < prev.offsetTop + prev.offsetHeight / 2) {
+        const before = row.offsetTop; row.parentNode.insertBefore(prev, row.nextSibling); drag.startY += row.offsetTop - before; continue;
+      }
+      // keep the dragged row inside the list so the page cannot be scrolled past it
+      const rows = row.parentNode.querySelectorAll('.rrow'), last = rows[rows.length - 1];
+      const lo = rows[0].offsetTop - row.offsetTop, hi = last.offsetTop + last.offsetHeight - row.offsetHeight - row.offsetTop;
+      row.style.transform = 'translateY(' + Math.max(lo, Math.min(hi, dy)) + 'px)';
+      break;
+    }
+  }
+  function autoScrollLoop() {
+    if (!drag) return;
+    const fl = document.querySelector('.flight');
+    const top = (fl ? fl.getBoundingClientRect().bottom : 0) + 28, bottom = window.innerHeight - 70;
+    let v = 0;
+    if (drag.lastY < top) v = -Math.min(18, (top - drag.lastY) / 4 + 4);
+    else if (drag.lastY > bottom) v = Math.min(18, (drag.lastY - bottom) / 4 + 4);
+    if (v) { window.scrollBy(0, v); updateDrag(); }
+    drag.raf = requestAnimationFrame(autoScrollLoop);
+  }
+  function onDragMove(e) {
+    if (!drag || e.pointerId !== drag.pid) return;
+    drag.lastY = e.clientY; updateDrag();
+  }
+  function endDrag(e) {
+    if (!drag || (e && e.pointerId !== drag.pid)) return;
+    const d = drag; drag = null;
+    cancelAnimationFrame(d.raf);
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', endDrag);
+    document.removeEventListener('pointercancel', endDrag);
+    try { d.grip.releasePointerCapture(d.pid); } catch (_) { /* already released */ }
+    d.row.style.transform = ''; d.row.classList.remove('dragging');
+    commitOrder();
+  }
+  $('cards').addEventListener('pointerdown', e => {
+    const grip = e.target.closest('.grip');
+    if (!grip || !ui.reorder || drag) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    const row = grip.closest('.rrow');
+    drag = { row, grip, pid: e.pointerId, startY: e.clientY, lastY: e.clientY, scroll0: window.scrollY, raf: 0 };
+    try { grip.setPointerCapture(e.pointerId); } catch (_) { /* capture not supported */ }
+    row.classList.add('dragging');
+    document.addEventListener('pointermove', onDragMove);
+    document.addEventListener('pointerup', endDrag);
+    document.addEventListener('pointercancel', endDrag);
+    drag.raf = requestAnimationFrame(autoScrollLoop);
+  });
+  $('cards').addEventListener('keydown', e => {
+    const grip = e.target.closest && e.target.closest('.grip');
+    if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+    e.preventDefault();
+    const row = grip.closest('.rrow'), up = e.key === 'ArrowUp';
+    const sib = up ? row.previousElementSibling : row.nextElementSibling;
+    if (!sib || !sib.classList.contains('rrow')) return;
+    if (up) row.parentNode.insertBefore(row, sib); else row.parentNode.insertBefore(sib, row);
+    grip.focus(); commitOrder();
+    const pos = [...row.parentNode.querySelectorAll('.rrow')].indexOf(row) + 1;
+    $('sr').textContent = row.dataset.id + ' moved to position ' + pos + ' of ' + list.length;
+  });
+  $('reorderBtn').addEventListener('click', () => { ui.reorder = !ui.reorder; ui.menu = null; render(); });
+
+  /* ---------- add / settings ---------- */
+  function addStation() {
+    const v = $('addIn').value.trim().toUpperCase().slice(0, 4);
+    if (!/^[A-Z0-9]{4}$/.test(v)) { toast('Enter a 4-letter ICAO code.'); return; }
+    if (list.includes(v)) { toast(v + ' is already in the list.'); return; }
+    list.push(v); save(LS.list, list); $('addIn').value = '';
+    render();
+    if (!data.demo) refresh();
+  }
+  $('addBtn').addEventListener('click', addStation);
+  $('addIn').addEventListener('keydown', e => { if (e.key === 'Enter') addStation(); });
+
+  $('setBtn').addEventListener('click', () => { $('settings').hidden = !$('settings').hidden; });
+  const CFG_FIELDS = { mGc: 'greenCig', mGv: 'greenVis', mTw: 'maxTw', mXw: 'maxXw' };
+  function fillCfg() { for (const id in CFG_FIELDS) $(id).value = cfg[CFG_FIELDS[id]]; }
+  Object.keys(CFG_FIELDS).forEach(id => $(id).addEventListener('change', () => {
+    const n = Object.assign({}, cfg);
+    for (const k in CFG_FIELDS) { const v = +$(k).value; n[CFG_FIELDS[k]] = isFinite(v) && v >= 0 && $(k).value !== '' ? v : C.DEFAULT_CFG[CFG_FIELDS[k]]; }
+    cfg = n; save(LS.cfg, cfg); fillCfg(); renderLegend(); render();
+  }));
+  $('mReset').addEventListener('click', () => { cfg = Object.assign({}, C.DEFAULT_CFG); save(LS.cfg, cfg); fillCfg(); renderLegend(); render(); });
+
+  /* ---------- clock ---------- */
+  setInterval(() => {
+    $('tz').textContent = tzLabel();
+    syncFlight();
+    const prev = axis && axis.start;
+    computeAxis();
+    if (axis.start !== prev) computeGrids();
+    renderAge(); renderMinNote(); drawAll();
+  }, 30e3);
+  window.addEventListener('resize', drawAll);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); } });
+
+  $('tz').textContent = tzLabel(); fillCfg(); renderLegend(); syncFlight(); render(); loadStationList();
+  window.__taf = { model, flight, onSlider, pin, ui, disc, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
+})();
+
+</script>
+</body>
+</html>
