@@ -235,6 +235,14 @@ select{font:inherit;font-size:16px;color:inherit}
 .foot .minnote{margin:0 2px 6px}
 .airacwarn{margin:0 2px 10px;font-size:11px}
 .airacwarn[hidden]{display:none}
+
+/* v1.14: empty start and per-group wind ignore */
+.empty.first{padding:34px 14px}
+.empty.first .ft{font-family:var(--display);font-size:30px;letter-spacing:.5px;color:var(--text);margin-bottom:6px}
+.empty.first .fs{font-size:12px;line-height:1.5;max-width:30ch;margin:0 auto}
+.windtag{display:inline-block;margin-top:4px;border:1px solid var(--amber);color:var(--amber);border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600}
+.windtag[hidden]{display:none}
+.pill .tag.wtag{background:transparent;border:1px solid rgba(0,0,0,.65);font-weight:700}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -293,7 +301,7 @@ select{font:inherit;font-size:16px;color:inherit}
     <div class="minnote" id="airacNote"></div>
   </div>
 
-  <div class="version">TAF Timeline v1.13</div>
+  <div class="version">TAF Timeline v1.14</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="sr" role="status" aria-live="polite"></div>
@@ -493,14 +501,23 @@ select{font:inherit;font-size:16px;color:inherit}
   }
 
   // ctx: { pool: [approach], forced: bool, cfg, indep }
+  // ctx.windOff: TAF groups whose wind the commander has chosen to ignore. A state whose wind comes from
+  // one of them is evaluated as if no wind were given: no crosswind/tailwind limit, pick by lowest minima.
   function evalState(state, ctx) {
+    const wi = !!(ctx.windOff && state.prov && state.prov.w && ctx.windOff.has(state.prov.w));
+    if (wi) state = Object.assign({}, state, { wind: null });
     let ap, wc;
     if (ctx.forced) { ap = ctx.pool[0]; wc = windCheck(state.wind, ap, ctx.cfg); }
     else { const p = pickApproach(state, ctx.pool, ctx.cfg); ap = p.ap; wc = p.wc; }
-    if (!wc.ok) return { cat: CAT.RED, factor: wc.reason, apId: ap.id, apL: ap.l, windFail: true, windShort: wc.short, altOk: false, altFactor: wc.reason };
+    if (!wc.ok) return { cat: CAT.RED, factor: wc.reason, apId: ap.id, apL: ap.l, windFail: true, windShort: wc.short, altOk: false, altFactor: wc.reason, windIgn: wi };
     const r = classifyApproach(state, ap, ctx.cfg, ctx.indep, ctx.iso);
     const af = ctx.iso ? '' : altCheck(state, ap);
-    return { cat: r.cat, factor: r.factor, apId: ap.id, apL: ap.l, windFail: false, windShort: '', altOk: !af, altFactor: af };
+    return { cat: r.cat, factor: r.factor, apId: ap.id, apL: ap.l, windFail: false, windShort: '', altOk: !af, altFactor: af, windIgn: wi };
+  }
+  // Would ignoring this state's wind give a better colour? (used to decide whether to offer "Ignore wind")
+  function windCosts(state, ctx) {
+    const c = Object.assign({}, ctx, { windOff: undefined });
+    return evalState(Object.assign({}, state, { wind: null }), c).cat > evalState(state, c).cat;
   }
 
   /* ---------- TAF parsing ---------- */
@@ -685,7 +702,7 @@ select{font:inherit;font-size:16px;color:inherit}
   // The TAF groups whose weather is used anywhere in that window: the groups in force, the TEMPO/PROB groups
   // that apply, both old and new during a BECMG, and any earlier group whose wind, visibility or clouds
   // are carried into the groups in force. Disregarded groups (skip) are left out.
-  function groupsInWindow(taf, grid, i, ftMin, vcat, skip) {
+  function groupsInWindow(taf, grid, i, ftMin, vcat, skip, windOff) {
     const out = new Set();
     if (!taf || taf.error || vcat == null || vcat < 0) return out;
     const w = verdictWindow(vcat, ftMin);
@@ -694,7 +711,7 @@ select{font:inherit;font-size:16px;color:inherit}
       if (!cands) continue;
       for (const c of cands) {
         if (c.src) out.add(c.src);
-        if (c.s.prov) for (const k of ['w', 'v', 'c']) if (c.s.prov[k]) out.add(c.s.prov[k]);
+        if (c.s.prov) for (const k of ['w', 'v', 'c']) if (c.s.prov[k] && !(k === 'w' && windOff && windOff.has(c.s.prov[k]))) out.add(c.s.prov[k]);
       }
     }
     return out;
@@ -756,7 +773,7 @@ select{font:inherit;font-size:16px;color:inherit}
   const api = {
     STEP_MIN, STEP_MS, CAT, CAT_NAME, CAT_VERDICT, FUEL, TYPE_A_DH, DEFAULT_CFG,
     parseTAF, parseMETAR, sysOf, eqKey, hasIndependent, hasNonGnss, windCheck, pickApproach,
-    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow
+    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TAFCore = api;
@@ -771,7 +788,7 @@ select{font:inherit;font-size:16px;color:inherit}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.13';
+  const VERSION = '1.14';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -791,7 +808,7 @@ select{font:inherit;font-size:16px;color:inherit}
     return c;
   }
 
-  let list = load(LS.list, ['ENZV', 'ENBR', 'ENVA', 'ENTC', 'ENBS']);
+  let list = load(LS.list, []);                // a new user starts with no aerodromes and chooses their own
   let data = load(LS.data, { fetchedAt: null, stations: {}, demo: false });
   let cfg = loadCfg();
   let custom = load(LS.custom, {});          // { ICAO: [{ id, t, r, dh, rvr }] } user entered, this device only
@@ -799,6 +816,7 @@ select{font:inherit;font-size:16px;color:inherit}
   let offshore = load(LS.off, {});           // { ICAO: true } offshore installation (never two independent approaches)
   const pin = {};                            // icao -> approach id pinned this session
   const disc = {};                           // icao -> { key: raw TAF, idx: [group indexes] } PROB30 groups disregarded
+  const wdisc = {};                          // icao -> { key, idx } groups whose wind is ignored (this TAF issue only)
   const ui = { menu: null, edit: null, draft: null, reorder: false };
   const flight = { dep: null, ft: null, eta: null, set: new Set() };
   const inspect = {};                        // icao -> time being inspected
@@ -1009,9 +1027,14 @@ select{font:inherit;font-size:16px;color:inherit}
     const dd = disc[id];
     if (dd && (!m.taf || m.taf.error || dd.key !== m.taf.raw)) delete disc[id];
     if (disc[id]) disc[id].idx.forEach(i => { const g = m.taf.groups[i]; if (g) m.skip.add(g); });
+    // groups whose wind (crosswind, tailwind, runway preference) is ignored, for the time that wind is in force
+    m.windOff = new Set();
+    const wd = wdisc[id];
+    if (wd && (!m.taf || m.taf.error || wd.key !== m.taf.raw)) delete wdisc[id];
+    if (wdisc[id]) wdisc[id].idx.forEach(i => { const g = m.taf.groups[i]; if (g) m.windOff.add(g); });
     model[id] = m;
   }
-  const ctxFor = (m, forced) => ({ pool: forced ? [forced] : m.pool, forced: !!forced, cfg: m.cfg, indep: m.indep, iso: m.iso, skip: m.skip });
+  const ctxFor = (m, forced) => ({ pool: forced ? [forced] : m.pool, forced: !!forced, cfg: m.cfg, indep: m.indep, iso: m.iso, skip: m.skip, windOff: m.windOff });
   function computeGrids() {
     for (const id of list) {
       const m = model[id];
@@ -1353,7 +1376,7 @@ select{font:inherit;font-size:16px;color:inherit}
     if (wrap) wrap.innerHTML = buttonHTML(m, T);
     if (menu) { menu.hidden = ui.menu !== id; if (!menu.hidden) menu.innerHTML = menuHTML(m, T); }
     const badge = card.querySelector('.vbadge'), sub = card.querySelector('.vsub'), ro = card.querySelector('.readout');
-    const notes = card.querySelector('.notes'), tipEl = card.querySelector('.tip'), altag = card.querySelector('.altag'), disctag = card.querySelector('.disctag');
+    const notes = card.querySelector('.notes'), tipEl = card.querySelector('.tip'), altag = card.querySelector('.altag'), disctag = card.querySelector('.disctag'), windtag = card.querySelector('.windtag');
     const vf = verdictFor(m);
     const vcat = vf && vf.cat != null ? vf.cat : null;
     if (vcat != null) {
@@ -1367,7 +1390,7 @@ select{font:inherit;font-size:16px;color:inherit}
     }
     // TAF groups used for the colour at the ETA get a thin blue outline
     let winSet = null;
-    if (flight.eta != null && m.gridAuto && vcat != null && vcat >= 0) winSet = C.groupsInWindow(m.taf, selGrid(m), gridIndex(m, flight.eta), flight.ft, vcat, m.skip);
+    if (flight.eta != null && m.gridAuto && vcat != null && vcat >= 0) winSet = C.groupsInWindow(m.taf, selGrid(m), gridIndex(m, flight.eta), flight.ft, vcat, m.skip, m.windOff);
     m.winGroups = winSet;
     card.querySelectorAll('.pills .pill[data-gi]').forEach(el => {
       const g = m.taf && m.taf.groups[+el.dataset.gi];
@@ -1379,6 +1402,8 @@ select{font:inherit;font-size:16px;color:inherit}
     altag.hidden = !ab;
     const n = m.skip ? m.skip.size : 0;
     disctag.hidden = !n; disctag.textContent = n + ' PROB30 disregarded';
+    const nw = m.windOff ? m.windOff.size : 0;
+    windtag.hidden = !nw; windtag.textContent = nw + (nw === 1 ? ' wind ignored' : ' winds ignored');
     // notes under the approach button
     const lines = [];
     const bh = betterHint(m, T, d);
@@ -1462,14 +1487,16 @@ select{font:inherit;font-size:16px;color:inherit}
 
   /* ---------- rendering ---------- */
   function pillHTML(text, m, st, opt) {
-    const btn = opt && opt.prob30 && m.hasMin ? '<button class="disc" data-act="disc" data-g="' + opt.gi + '">' + (opt.off ? 'Include' : 'Disregard') + '</button>' : '';
+    const btn = (opt && opt.prob30 && m.hasMin ? '<button class="disc" data-act="disc" data-g="' + opt.gi + '">' + (opt.off ? 'Include' : 'Disregard') + '</button>' : '') +
+      (opt && opt.wind && m.hasMin && !opt.off ? '<button class="disc" data-act="wind" data-g="' + opt.gi + '">' + (opt.wind === 'on' ? 'Use wind' : 'Ignore wind') + '</button>' : '');
+    const wtag = opt && opt.wind === 'on' && !opt.off ? '<span class="tag wtag">WIND IGNORED</span>' : '';
     const dg = opt ? ' data-gi="' + opt.gi + '"' : '';
     if (opt && opt.off) return '<div class="pill off"' + dg + '>' + esc(text) + btn + '</div>';
     if (!m.hasMin) return '<div class="pill neutral"' + dg + '>' + esc(text) + btn + '</div>';
     const r = stateResult(m, st);
     const tag = r.cat === 2 ? '<span class="tag">' + C.FUEL.toUpperCase() + '</span>' : '';
     const title = r.apL + ': ' + catName(r.cat, m) + (r.factor ? ', ' + r.factor : '');
-    return '<div class="pill"' + dg + ' style="background:' + COLORS[r.cat] + '" title="' + esc(title) + '">' + esc(text) + tag + btn + '</div>';
+    return '<div class="pill"' + dg + ' style="background:' + COLORS[r.cat] + '" title="' + esc(title) + '">' + esc(text) + tag + wtag + btn + '</div>';
   }
   function groupText(g, taf) {
     if (g.kind === 'BASE') {
@@ -1487,6 +1514,7 @@ select{font:inherit;font-size:16px;color:inherit}
     const cigTxt = s => (s.cig >= 99999 ? 'no ceiling' : 'ceiling ' + s.cig + ' ft' + (s.cigText ? ' (' + s.cigText + ')' : ''));
     const noteFor = (g, off) => {
       if (off) return 'Disregarded by you, not counted.';
+      if (m.windOff && m.windOff.has(g)) return 'Wind ignored by you for the time it is in force.';
       if (g.kind === 'BASE') return 'Main forecast, applies unless a later group changes it.';
       if (g.kind === 'FM') return 'FM: these conditions apply from this time.';
       if (g.kind === 'BECMG') return 'BECMG: the worse of old and new counts until the change period ends.';
@@ -1497,7 +1525,7 @@ select{font:inherit;font-size:16px;color:inherit}
       if (!g.state) return;
       const off = m.skip && m.skip.has(g);
       h += '<div class="hr' + (m.winGroups && m.winGroups.has(g) ? ' inwin' : '') + '"><div class="hh">' + esc(groupText(g, m.taf)) + '</div><div class="hn">' + esc(noteFor(g, off)) + '</div>' +
-        '<div class="hv">wind ' + esc(windTxt(g.state.wind)) + ' · visibility ' + esc(visTxt(g.state)) + ' · ' + esc(cigTxt(g.state)) + '</div>';
+        '<div class="hv">wind ' + esc(windTxt(g.state.wind)) + (m.windOff && g.state.prov && m.windOff.has(g.state.prov.w) ? ' (ignored)' : '') + ' · visibility ' + esc(visTxt(g.state)) + ' · ' + esc(cigTxt(g.state)) + '</div>';
       if (m.hasMin && !off) {
         const r = stateResult(m, g.state);
         h += '<div class="hres" style="color:' + COLORS[r.cat] + '">→ ' + esc(r.apL) + ': ' + esc(catName(r.cat, m)) + (r.factor ? ', ' + esc(r.factor) : '') + '</div>';
@@ -1514,7 +1542,7 @@ select{font:inherit;font-size:16px;color:inherit}
     const nm = s.name || (ad && ad.n) || (s.taf || s.metar ? '' : 'No data yet');
     const tags = [nm, m.off ? 'offshore installation' : '', m.iso ? 'isolated' : ''].filter(Boolean).join(' · ');
     h += '<div class="chead"><div><div class="icao">' + id + '</div><div class="sname">' + esc(tags) + '</div></div>';
-    if (m.hasMin) h += '<div class="verdict"><div class="vbadge none"></div><div class="vsub"></div><div class="altag" hidden>BELOW ALTN MINIMA</div><div class="disctag" hidden></div></div>';
+    if (m.hasMin) h += '<div class="verdict"><div class="vbadge none"></div><div class="vsub"></div><div class="altag" hidden>BELOW ALTN MINIMA</div><div class="disctag" hidden></div><div class="windtag" hidden></div></div>';
     h += '<button class="rm" data-act="rm" aria-label="Remove ' + id + '">×</button></div>';
     if (m.hasMin) {
       h += '<div class="appr"><div class="apbtnwrap"></div><div class="apmenu" hidden></div></div><div class="notes"></div><div class="tip"></div>';
@@ -1530,7 +1558,13 @@ select{font:inherit;font-size:16px;color:inherit}
     if (m.hasMin) h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
     if (m.taf && !m.taf.error) {
       h += '<div class="lbl tafl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="pills">';
-      m.taf.groups.forEach((g, gi) => { if (g.state) h += pillHTML(groupText(g, m.taf), m, g.state, { gi, off: m.skip.has(g), prob30: g.prob === 30 }); });
+      const noOff = Object.assign({}, ctxFor(m, pinnedAp(m)), { windOff: undefined });
+      m.taf.groups.forEach((g, gi) => {
+        if (!g.state) return;
+        // offer "Ignore wind" only on a group that states a wind and where that wind costs a colour; keep it once pressed
+        const wind = !g.el.wind || !m.hasMin ? '' : m.windOff.has(g) ? 'on' : (C.windCosts(g.state, noOff) ? 'offer' : '');
+        h += pillHTML(groupText(g, m.taf), m, g.state, { gi, off: m.skip.has(g), prob30: g.prob === 30, wind });
+      });
       h += '</div><details class="rawd"><summary>Show raw TAF</summary><div class="raw">' + esc(m.taf.raw) + '</div></details>';
       h += '<details class="rawd"><summary>How this was read</summary><div class="howread">' + howHTML(m) + '</div></details>';
     } else if (m.taf && m.taf.error) {
@@ -1550,7 +1584,7 @@ select{font:inherit;font-size:16px;color:inherit}
     $('reorderBtn').classList.toggle('primary', ui.reorder);
     const cards = $('cards');
     if (!list.length) {
-      cards.innerHTML = '<div class="empty">No aerodromes yet. Add one below.</div>';
+      cards.innerHTML = '<div class="empty first"><div class="ft">Add your first aerodrome</div><div class="fs">Type an ICAO code, for example ENZV, in the field below. Norwegian aerodromes are suggested as you type.</div></div>';
     } else if (!Object.keys(data.stations).length) {
       cards.innerHTML = '<div class="empty">No weather loaded yet.<br><br><button class="btn primary" id="emptyRefresh">Refresh</button> <button class="btn" id="demoBtn">Load sample data</button></div>';
       $('emptyRefresh').onclick = refresh;
@@ -1603,6 +1637,15 @@ select{font:inherit;font-size:16px;color:inherit}
         const k = dd.idx.indexOf(gi);
         if (k >= 0) dd.idx.splice(k, 1); else dd.idx.push(gi);
         if (!dd.idx.length) delete disc[id];
+        render(); break;
+      }
+      case 'wind': {
+        const m = model[id]; if (!m || !m.taf) break;
+        const gi = +t.dataset.g;
+        const wd = wdisc[id] && wdisc[id].key === m.taf.raw ? wdisc[id] : (wdisc[id] = { key: m.taf.raw, idx: [] });
+        const k = wd.idx.indexOf(gi);
+        if (k >= 0) wd.idx.splice(k, 1); else wd.idx.push(gi);
+        if (!wd.idx.length) delete wdisc[id];
         render(); break;
       }
       case 'rm': list = list.filter(x => x !== id); save(LS.list, list); if (ui.menu === id) ui.menu = null; if (ui.edit && ui.edit.icao === id) { ui.edit = null; ui.draft = null; } render(); break;
