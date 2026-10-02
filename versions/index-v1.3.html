@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e14">
+<title>TAF Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0b0e14; --surface:#121722; --surface2:#171d2a; --line:#232b3a;
+  --text:#d7dde8; --muted:#7d8799; --faint:#4a5365;
+  --amber:#e8a020; --blue:#4ea8de;
+  --c-green:#3fb950; --c-g15:#9cc53a; --c-amber:#e8a020; --c-red:#e5484d; --c-none:#2a3140;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+  --display:'Bebas Neue','Arial Narrow',Impact,sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0; background:var(--bg); color:var(--text); font-family:var(--mono); font-size:13px; line-height:1.45;
+  background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);
+  background-size:24px 24px; min-height:100vh;
+}
+button,input{font:inherit;color:inherit}
+input:not([type=range]){font-size:16px}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.wrap{max-width:720px;margin:0 auto;padding:0 12px 40px}
+
+/* header */
+header{display:flex;align-items:center;gap:10px;padding:14px 0 10px}
+h1{white-space:nowrap;font-family:var(--display);font-weight:400;font-size:30px;letter-spacing:1px;margin:0;line-height:1;color:var(--text)}
+h1 b{color:var(--amber);font-weight:400}
+.hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:7px 11px;font-size:12px;font-weight:500}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#14100a;font-weight:600}
+.btn:disabled{opacity:.5;cursor:default}
+.icon-btn{background:none;border:1px solid var(--line);border-radius:6px;width:34px;height:32px;display:grid;place-items:center;color:var(--muted)}
+.age{font-size:11px;color:var(--muted);text-align:right;line-height:1.2}
+.age.stale{color:var(--amber)}
+.warn{font-size:11px;color:#c9b27a;border:1px solid #4a3b18;background:#1a150a;border-radius:6px;padding:6px 9px;margin-bottom:10px}
+
+/* flight panel */
+.flight{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:rgba(11,14,20,.94);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:8px;padding:8px 10px 6px;margin-bottom:12px}
+.tz{font-size:10px;color:var(--muted);margin-bottom:2px}
+.frow{display:grid;grid-template-columns:84px 58px 1fr;align-items:center;gap:8px;height:32px}
+.frow label{font-size:11px;color:var(--muted)}
+.fval{font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
+.frow.unset .fval{color:var(--faint)}
+.frow.unset input[type=range]{opacity:.45}
+.frow.dep .fval{color:var(--blue)} .frow.eta .fval{color:#fff}
+.fhint{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;padding-top:2px}
+.fhint button{background:none;border:none;color:var(--blue);padding:0;font-size:11px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:var(--line);border-radius:2px}
+input[type=range]::-moz-range-track{height:4px;background:var(--line);border-radius:2px}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--text);margin-top:-8px;border:3px solid var(--bg)}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--text);border:3px solid var(--bg)}
+.frow.dep input::-webkit-slider-thumb{background:var(--blue)} .frow.dep input::-moz-range-thumb{background:var(--blue)}
+.frow.ft input::-webkit-slider-thumb{background:var(--muted)} .frow.ft input::-moz-range-thumb{background:var(--muted)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:var(--muted);margin:0 2px 10px}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.sw{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* cards */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 12px 10px;margin-bottom:12px}
+.chead{display:flex;align-items:flex-start;gap:10px}
+.icao{font-family:var(--display);font-size:32px;line-height:.9;letter-spacing:.5px}
+.sname{font-size:11px;color:var(--muted);margin-top:3px;max-width:22ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.verdict{margin-left:auto;text-align:right}
+.vbadge{display:inline-block;border-radius:6px;padding:4px 8px;font-weight:600;font-size:12px;color:#0c0f14;white-space:nowrap}
+.vbadge.none{background:var(--c-none);color:var(--muted);font-weight:500}
+.vsub{font-size:10px;color:var(--muted);margin-top:3px}
+.rm{background:none;border:none;color:var(--faint);font-size:18px;line-height:1;padding:0 0 0 6px}
+.metar{margin-top:10px}
+.pills+details,.tl+.lbl{margin-top:8px}
+.lbl{font-size:10px;color:var(--muted);letter-spacing:.3px;margin-bottom:3px;display:flex;gap:8px}
+.lbl .stale{color:var(--amber)}
+.tl{margin-top:10px;position:relative}
+canvas{display:block;width:100%;height:74px;touch-action:pan-y}
+.readout{font-size:11px;min-height:2.9em;color:var(--muted);margin-top:4px}
+.readout b{color:var(--text);font-weight:600}
+.pills{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:4px}
+.pill{border-radius:7px;padding:4px 8px;font-size:12.5px;font-weight:500;color:#0c0f14;max-width:100%;word-break:break-word}
+.pill .tag{font-size:10px;font-weight:600;background:rgba(0,0,0,.18);border-radius:4px;padding:0 4px;margin-left:6px;white-space:nowrap}
+.raw{font-size:11px;color:var(--muted);margin-top:8px;word-break:break-word}
+details.rawd summary{font-size:10px;color:var(--faint);cursor:pointer;margin-top:8px;list-style:none}
+details.rawd summary::-webkit-details-marker{display:none}
+.err{color:var(--c-red);font-size:12px;margin-top:8px}
+
+/* add + settings */
+.add{display:flex;gap:8px;margin:4px 0 14px}
+.add input{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;text-transform:uppercase}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+.panel h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0 0 6px;letter-spacing:.5px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px}
+.grid2 label{font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.grid2 input{background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 8px}
+.note{font-size:11px;color:var(--muted);margin-top:8px}
+.empty{text-align:center;color:var(--muted);padding:26px 10px}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:12px;max-width:92vw;z-index:20;display:none}
+.version{text-align:center;font-size:10px;color:var(--faint);margin-top:18px;opacity:.6}
+@media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>TAF <b>Timeline</b></h1>
+    <div class="hdr-right">
+      <div class="age" id="age"></div>
+      <button class="btn primary" id="refresh">Refresh</button>
+      <button class="icon-btn" id="setBtn" aria-label="Minima settings" title="Minima settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="warn">Advisory only. Decoded and coloured automatically from TAF/METAR with placeholder minima. Always verify against the official forecast, AIP and OM.</div>
+
+  <section class="panel" id="settings" hidden>
+    <h2>Minima</h2>
+    <div class="grid2">
+      <label>DH (ft)<input type="number" id="mDh" inputmode="numeric" step="10" min="0"></label>
+      <label>RVR / VIS (m)<input type="number" id="mRvr" inputmode="numeric" step="50" min="0"></label>
+      <label>Green ceiling (ft)<input type="number" id="mGc" inputmode="numeric" step="100" min="0"></label>
+      <label>Green visibility (m)<input type="number" id="mGv" inputmode="numeric" step="500" min="0"></label>
+    </div>
+    <p class="note" id="mNote"></p>
+    <button class="btn" id="mReset">Reset to defaults</button>
+  </section>
+
+  <section class="flight" aria-label="Flight times">
+    <div class="tz" id="tz"></div>
+    <div class="frow dep unset" id="rowDep"><label for="sDep">Departure</label><span class="fval" id="vDep">--</span><input type="range" id="sDep" step="5"></div>
+    <div class="frow ft unset" id="rowFt"><label for="sFt">Flight time</label><span class="fval" id="vFt">--</span><input type="range" id="sFt" min="30" max="180" step="5" value="60"></div>
+    <div class="frow eta unset" id="rowEta"><label for="sEta">ETA</label><span class="fval" id="vEta">--</span><input type="range" id="sEta" step="5"></div>
+    <div class="fhint"><span id="fHint">Set any two. The third is calculated.</span><button id="fReset">Clear</button></div>
+  </section>
+
+  <div class="legend" id="legend"></div>
+  <div id="cards"></div>
+
+  <div class="add">
+    <input id="addIn" list="stations" placeholder="Add ICAO, e.g. ENZV" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+    <datalist id="stations"></datalist>
+    <button class="btn" id="addBtn">Add</button>
+  </div>
+
+  <div class="version">TAF Timeline v1.3</div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/* TAF Timeline core: parser, most-limiting evaluation, EASA colour rules.
+   Plain script: defines window.TAFCore (or global in Node). */
+(function (root) {
+  'use strict';
+
+  const STEP_MIN = 5;                 // timeline resolution
+  const STEP_MS = STEP_MIN * 60000;
+  const CAT = { NODATA: -1, RED: 0, AMBER: 1, G15: 2, GREEN: 3 };
+  const CAT_NAME = ['RED', 'AMBER', 'GREEN +15', 'GREEN'];
+  const CAT_VERDICT = ['2 ALTN', '1 ALTN', 'NO ALTN · +15 MIN FUEL', 'NO ALTN'];
+  // ETA window (minutes either side) needed to hold each category
+  const WINDOW_MIN = { 3: 60, 2: 120, 1: 60 };
+  const INF = 99999;
+
+  const DEFAULT_MINIMA = { dh: 200, rvr: 550, greenCig: 1500, greenVis: 5000 };
+
+  function thresholds(m) {
+    return {
+      3: { cig: m.greenCig, vis: m.greenVis },
+      2: { cig: m.dh + 400, vis: 3000 },
+      1: { cig: 0, vis: m.rvr }        // Type B: no ceiling requirement
+    };
+  }
+
+  /* ---------- time ---------- */
+  // Resolve a TAF day/hour/minute to a Date close to the reference time.
+  function resolveTime(dd, hh, mm, ref) {
+    const r = new Date(ref);
+    let best = null;
+    for (let k = -1; k <= 1; k++) {
+      const d = Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + k, dd, hh, mm);
+      // guard against day overflow (e.g. 31st in a 30-day month)
+      const chk = new Date(Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + k, 1));
+      const dim = new Date(Date.UTC(chk.getUTCFullYear(), chk.getUTCMonth() + 1, 0)).getUTCDate();
+      if (dd > dim) continue;
+      if (best === null || Math.abs(d - ref) < Math.abs(best - ref)) best = d;
+    }
+    return best;
+  }
+  function parsePeriod(tok, ref) {
+    const m = /^(\d{2})(\d{2})\/(\d{2})(\d{2})$/.exec(tok);
+    if (!m) return null;
+    const from = resolveTime(+m[1], +m[2], 0, ref);
+    let to = resolveTime(+m[3], +m[4], 0, ref);
+    if (to <= from) to += 0; // resolveTime handles hh=24 via Date.UTC overflow
+    return { from, to };
+  }
+
+  /* ---------- element parsing ---------- */
+  const RE_WIND = /^(\d{3}|VRB)(\d{2,3})(?:G(\d{2,3}))?(KT|MPS)$/;
+  const RE_CLOUD = /^(FEW|SCT|BKN|OVC)(\d{3})(CB|TCU|\/\/\/)?$/;
+  const RE_VV = /^VV(\d{3}|\/\/\/)$/;
+  const RE_WX = /^(\+|-|VC)?(MI|BC|PR|DR|BL|SH|TS|FZ)?((DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+)$|^(\+|-)?(TS|SH)$/;
+
+  // Parse a list of tokens into the elements they specify (only those present).
+  function parseElements(tokens) {
+    const e = {};
+    for (let i = 0; i < tokens.length; i++) {
+      const t = tokens[i];
+      let m;
+      if (t === 'CAVOK') { e.cavok = true; e.vis = 10000; e.clouds = []; e.wx = []; continue; }
+      if ((m = RE_WIND.exec(t))) {
+        const f = m[4] === 'MPS' ? 1.944 : 1;
+        e.wind = { dir: m[1], spd: Math.round(+m[2] * f), gust: m[3] ? Math.round(+m[3] * f) : null, text: t };
+        continue;
+      }
+      if (/^\d{4}$/.test(t)) { e.vis = t === '9999' ? 10000 : +t; e.visText = t; continue; }
+      if (/^\d{4}(N|NE|E|SE|S|SW|W|NW|NDV)$/.test(t)) { e.vis = +t.slice(0, 4); e.visText = t; continue; }
+      // statute miles: P6SM, 2SM, 1/2SM, "1 1/2SM"
+      if ((m = /^(P)?(\d+)?(?:\/(\d+))?SM$/.exec(t))) {
+        let sm;
+        if (m[3]) sm = (+m[2]) / (+m[3]);
+        else sm = +m[2];
+        const prev = tokens[i - 1];
+        if (m[3] && prev && /^\d$/.test(prev)) sm += +prev;
+        e.vis = m[1] ? 10000 : Math.min(10000, Math.round(sm * 1609));
+        e.visText = t; continue;
+      }
+      if (t === 'NSC' || t === 'SKC' || t === 'CLR' || t === 'NCD') { e.clouds = []; continue; }
+      if ((m = RE_CLOUD.exec(t))) { (e.clouds = e.clouds || []).push({ cov: m[1], h: +m[2] * 100, text: t }); continue; }
+      if ((m = RE_VV.exec(t))) { (e.clouds = e.clouds || []).push({ cov: 'VV', h: m[1] === '///' ? 0 : +m[1] * 100, text: t }); continue; }
+      if (t === 'NSW') { e.wx = []; continue; }
+      if (RE_WX.test(t)) { (e.wx = e.wx || []).push(t); continue; }
+      // everything else (TX/TN, QNH, WS, RMK...) is ignored
+    }
+    return e;
+  }
+
+  function ceilingOf(clouds) {
+    let c = INF, txt = null;
+    for (const l of clouds || []) {
+      if ((l.cov === 'BKN' || l.cov === 'OVC' || l.cov === 'VV') && l.h < c) { c = l.h; txt = l.text; }
+    }
+    return { cig: c, cigText: txt };
+  }
+
+  function merge(base, el) {
+    const s = {
+      wind: base.wind, vis: base.vis, visText: base.visText,
+      clouds: base.clouds, wx: base.wx, cavok: base.cavok
+    };
+    if (el.wind) s.wind = el.wind;
+    if (el.vis !== undefined) { s.vis = el.vis; s.visText = el.visText || (el.cavok ? 'CAVOK' : null); s.cavok = !!el.cavok; }
+    if (el.clouds !== undefined) { s.clouds = el.clouds; if (!el.cavok) s.cavok = false; }
+    if (el.wx !== undefined) s.wx = el.wx;
+    const c = ceilingOf(s.clouds);
+    s.cig = c.cig; s.cigText = c.cigText;
+    return s;
+  }
+  const EMPTY = { wind: null, vis: 10000, visText: null, clouds: [], wx: [], cavok: false };
+
+  /* ---------- classification ---------- */
+  function classify(s, minima) {
+    const th = thresholds(minima);
+    const vis = s.vis == null ? INF : s.vis;
+    const cig = s.cig == null ? INF : s.cig;
+    let cat = CAT.RED;
+    for (const c of [3, 2, 1]) {
+      if (vis >= th[c].vis && cig >= th[c].cig) { cat = c; break; }
+    }
+    // what stops it from reaching the next category
+    let factor = '';
+    if (cat < 3) {
+      const nx = th[cat + 1];
+      const f = [];
+      if (vis < nx.vis) f.push('VIS ' + (vis >= 10000 ? '10KM+' : vis + 'M'));
+      if (cig < nx.cig) f.push('CIG ' + cig + 'FT' + (s.cigText ? ' (' + s.cigText + ')' : ''));
+      factor = f.join(' + ');
+    }
+    return { cat, factor };
+  }
+
+  /* ---------- TAF parsing ---------- */
+  function tokenize(raw) {
+    return raw.replace(/=/g, ' ').replace(/\s+/g, ' ').trim().split(' ');
+  }
+
+  function parseTAF(raw, refTime) {
+    if (!raw) return null;
+    const ref = refTime || Date.now();
+    let tk = tokenize(raw);
+    const head = [];
+    while (tk.length && /^(TAF|AMD|COR|RTD)$/.test(tk[0])) head.push(tk.shift());
+    const icao = tk.shift();
+    let issue = null;
+    if (tk[0] && /^\d{6}Z$/.test(tk[0])) {
+      const t = tk.shift();
+      issue = resolveTime(+t.slice(0, 2), +t.slice(2, 4), +t.slice(4, 6), ref);
+    }
+    const valid = parsePeriod(tk[0] || '', issue || ref);
+    if (!valid) return { icao, error: 'No validity period', raw };
+    tk.shift();
+    if (tk[0] === 'NIL' || tk[0] === 'CNL') return { icao, error: 'TAF ' + tk[0], raw };
+    const vref = valid.from;
+
+    // split into groups
+    const groups = [];
+    let cur = { kind: 'BASE', tokens: [], from: valid.from, to: valid.to };
+    groups.push(cur);
+    for (let i = 0; i < tk.length; i++) {
+      const t = tk[i];
+      let m;
+      if ((m = /^FM(\d{2})(\d{2})(\d{2})$/.exec(t))) {
+        cur = { kind: 'FM', tokens: [], from: resolveTime(+m[1], +m[2], +m[3], vref), to: valid.to, label: t };
+        groups.push(cur); continue;
+      }
+      if (t === 'BECMG' || t === 'TEMPO' || /^PROB(30|40)$/.test(t)) {
+        let kind = t, label = t;
+        if (/^PROB/.test(t) && tk[i + 1] === 'TEMPO') { kind = 'PROBTEMPO'; label = t + ' TEMPO'; i++; }
+        else if (/^PROB/.test(t)) { kind = 'PROB'; }
+        const p = parsePeriod(tk[i + 1] || '', vref);
+        if (p) { i++; label += ' ' + tk[i]; }
+        cur = { kind, tokens: [], from: p ? p.from : valid.from, to: p ? p.to : valid.to, label };
+        groups.push(cur); continue;
+      }
+      cur.tokens.push(t);
+    }
+
+    // base timeline: segments [{from,to,states:[...] , src}]
+    for (const g of groups) g.el = parseElements(g.tokens);
+    let state = merge(EMPTY, groups[0].el);
+    groups[0].state = state;
+    const base = [{ from: valid.from, to: valid.to, states: [{ s: state, src: groups[0] }] }];
+    function cut(t) { // split base segment at time t, return index of segment starting at t
+      for (let i = 0; i < base.length; i++) {
+        const b = base[i];
+        if (t <= b.from) return i;
+        if (t > b.from && t < b.to) {
+          base.splice(i + 1, 0, { from: t, to: b.to, states: b.states.slice() });
+          b.to = t;
+          return i + 1;
+        }
+      }
+      return base.length;
+    }
+    function stateAt(t) {
+      for (const b of base) if (t >= b.from && t < b.to) return b.states[b.states.length - 1].s;
+      return base[base.length - 1].states[base[base.length - 1].states.length - 1].s;
+    }
+    const sorted = groups.slice(1).filter(g => g.kind === 'FM' || g.kind === 'BECMG').sort((a, b) => a.from - b.from);
+    for (const g of sorted) {
+      const prev = stateAt(Math.max(g.from - 1, valid.from));
+      const ns = merge(g.kind === 'FM' ? prev : prev, g.el);
+      g.state = ns;
+      const endT = g.kind === 'FM' ? g.from : g.to;
+      const i1 = cut(g.from);
+      cut(endT);
+      cut(valid.to);
+      for (let i = i1; i < base.length; i++) {
+        const b = base[i];
+        if (b.from >= endT) b.states = [{ s: ns, src: g }];
+        else b.states = [{ s: prev, src: b.states[b.states.length - 1].src }, { s: ns, src: g }]; // BECMG transition: both apply
+      }
+    }
+    // overlays (TEMPO / PROB)
+    const overlays = groups.filter(g => g.kind === 'TEMPO' || g.kind === 'PROB' || g.kind === 'PROBTEMPO');
+    for (const g of overlays) g.state = merge(stateAt(g.from), g.el);
+
+    return { icao, raw: raw.trim(), head, issue, valid, groups, base, overlays };
+  }
+
+  // All candidate states at time t (base, BECMG transition states, active overlays)
+  function candidatesAt(taf, t) {
+    if (!taf || taf.error || t >= taf.valid.to) return null;
+    // Before the TAF period starts, use its initial conditions (from 2 h before issue),
+    // so an ETA shortly after a new TAF comes into force isn't flagged as 'no TAF'.
+    const early = (taf.issue || taf.valid.from) - 2 * 3600e3;
+    if (t < taf.valid.from && t < early) return null;
+    if (t < taf.valid.from) t = taf.valid.from;
+    let seg = null;
+    for (const b of taf.base) if (t >= b.from && t < b.to) { seg = b; break; }
+    const out = [];
+    if (seg) for (const x of seg.states) out.push({ s: x.s, src: x.src });
+    const baseNow = out.length ? out[out.length - 1].s : EMPTY;
+    for (const o of taf.overlays) {
+      if (t >= o.from && t < o.to) out.push({ s: merge(baseNow, o.el), src: o });
+    }
+    return out;
+  }
+
+  // Most limiting category at time t
+  function evalAt(taf, t, minima) {
+    const c = candidatesAt(taf, t);
+    if (!c) return { cat: CAT.NODATA, factor: 'NO TAF', src: null };
+    let worst = null;
+    for (const x of c) {
+      const r = classify(x.s, minima);
+      if (!worst || r.cat < worst.cat) worst = { cat: r.cat, factor: r.factor, src: x.src };
+    }
+    return worst;
+  }
+
+  // Build 5-min grid of raw (most limiting) categories
+  function buildGrid(taf, start, end, minima) {
+    const n = Math.max(1, Math.ceil((end - start) / STEP_MS));
+    const raw = new Array(n);
+    for (let i = 0; i < n; i++) raw[i] = evalAt(taf, start + i * STEP_MS + STEP_MS / 2, minima);
+    return { start, end, n, raw };
+  }
+
+  // ETA verdict at grid index i: best category held throughout its window
+  function verdictAt(grid, i) {
+    const res = verdictCore(grid, i);
+    if (res.cat >= 0 && res.cat < (grid.raw[i] ? grid.raw[i].cat : -1)) {
+      // downgraded by the window: find what blocked the next category up
+      const lost = res.cat + 1, w = WINDOW_MIN[lost] / STEP_MIN;
+      let best = INF;
+      for (let j = i - w; j <= i + w; j++) {
+        const x = grid.raw[j]; const cj = x ? x.cat : CAT.NODATA;
+        if (cj >= 0 && cj < lost && Math.abs(j - i) < best) { best = Math.abs(j - i); res.cause = x || { cat: CAT.NODATA, factor: 'NO TAF', src: null }; res.causeIdx = j; }
+      }
+    }
+    return res;
+  }
+  function verdictCore(grid, i) {
+    const r = grid.raw[i];
+    if (!r || r.cat === CAT.NODATA) return { cat: CAT.NODATA, cause: r };
+    for (const c of [3, 2, 1]) {
+      const w = WINDOW_MIN[c] / STEP_MIN;
+      let ok = true, cause = null, causeDist = INF, causeIdx = null;
+      for (let j = i - w; j <= i + w; j++) {
+        const x = grid.raw[j];
+        const cj = x ? x.cat : CAT.NODATA;
+        if (cj >= 0 && cj < c) {   // cells outside the TAF carry no forecast: not a limit
+          ok = false;
+          const d = Math.abs(j - i);
+          if (d < causeDist) { causeDist = d; causeIdx = j; cause = x || { cat: CAT.NODATA, factor: 'NO TAF', src: null }; }
+        }
+      }
+      if (ok) return { cat: c, cause: r, causeIdx: i };
+      if (c === 1) return { cat: CAT.RED, cause: cause, causeIdx: causeIdx };
+    }
+  }
+
+  // Full verdict grid + shoulder info for rendering
+  function buildVerdicts(grid) {
+    const v = new Array(grid.n);
+    for (let i = 0; i < grid.n; i++) v[i] = verdictAt(grid, i);
+    // shoulder fraction: distance from forecast period that caused the downgrade
+    for (let i = 0; i < grid.n; i++) {
+      const vi = v[i], r = grid.raw[i];
+      vi.shoulder = 0;
+      // does the ETA window run past the end of the TAF? (flagged, not coloured red)
+      vi.partial = false;
+      if (vi.cat >= 0) {
+        const pw = (WINDOW_MIN[vi.cat] || 60) / STEP_MIN;
+        for (let j = i - pw; j <= i + pw; j++) {
+          const x = grid.raw[j];
+          if (x && x.cat === CAT.NODATA) { vi.partial = true; break; }
+        }
+      }
+      if (vi.cat >= 0 && r.cat > vi.cat) {
+        const lost = vi.cat + 1;
+        const w = WINDOW_MIN[lost] / STEP_MIN;
+        let d = INF;
+        for (let j = Math.max(0, i - w); j <= Math.min(grid.n - 1, i + w); j++) {
+          if (grid.raw[j].cat >= 0 && grid.raw[j].cat <= vi.cat) d = Math.min(d, Math.abs(j - i));
+        }
+        if (d === INF) d = w; // cause is outside the grid (e.g. end of TAF)
+        vi.shoulder = Math.min(1, d / w);
+        vi.lostWindow = WINDOW_MIN[lost];
+      }
+    }
+    return v;
+  }
+
+  // Simple METAR parse → state
+  function parseMETAR(raw) {
+    if (!raw) return null;
+    let tk = tokenize(raw);
+    while (tk.length && /^(METAR|SPECI|COR|AUTO)$/.test(tk[0])) tk.shift();
+    const icao = tk.shift();
+    let time = null;
+    if (tk[0] && /^\d{6}Z$/.test(tk[0])) time = tk.shift();
+    const cut = tk.findIndex(t => /^(TEMPO|BECMG|NOSIG|RMK)$/.test(t));
+    const body = cut >= 0 ? tk.slice(0, cut) : tk;
+    const trend = cut >= 0 ? tk.slice(cut).join(' ') : '';
+    const s = merge(EMPTY, parseElements(body.filter(t => t !== 'AUTO')));
+    return { icao, time, state: s, trend, raw: raw.trim() };
+  }
+
+  const api = {
+    STEP_MIN, STEP_MS, CAT, CAT_NAME, CAT_VERDICT, WINDOW_MIN, DEFAULT_MINIMA,
+    thresholds, parseTAF, parseMETAR, classify, evalAt, buildGrid, buildVerdicts, verdictAt, resolveTime
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  else root.TAFCore = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+
+</script>
+<script>
+(function () {
+  'use strict';
+  const C = window.TAFCore;
+  const VERSION = "1.3";
+  const LS = { list: 'taft.list', data: 'taft.data', minima: 'taft.minima', stations: 'taft.stationlist' };
+  const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
+  const H = 3600e3, M = 60e3;
+  const $ = id => document.getElementById(id);
+
+  /* ---------- storage ---------- */
+  function load(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage full or blocked */ } }
+
+  let list = load(LS.list, ['ENZV', 'ENBR', 'ENVA', 'ENTC', 'ENBS']);
+  let data = load(LS.data, { fetchedAt: null, stations: {}, demo: false });
+  let minima = Object.assign({}, C.DEFAULT_MINIMA, load(LS.minima, {}));
+  const flight = { dep: null, ft: null, eta: null, set: new Set() };
+  const inspect = {}; // icao -> time being inspected
+
+  /* ---------- formatting ---------- */
+  const pad = n => String(n).padStart(2, '0');
+  const offMs = t => -new Date(t).getTimezoneOffset() * M;       // device time zone offset at time t
+  const lt = t => new Date(t + offMs(t));                         // read local fields with getUTC*()
+  const hhmm = t => { const d = lt(t); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+  const ddhhmm = t => { const d = lt(t); return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+  function tzLabel() {
+    const o = Math.round(offMs(Date.now()) / M), a = Math.abs(o);
+    return 'Local time (UTC' + (o < 0 ? '-' : '+') + Math.floor(a / 60) + (a % 60 ? ':' + pad(a % 60) : '') + ')';
+  }
+  const dur = m => Math.floor(m / 60) + ':' + pad(m % 60);
+  function ago(t) {
+    if (!t) return '';
+    const m = Math.round((Date.now() - t) / M);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + ' min ago';
+    const h = Math.floor(m / 60);
+    return h + ' h ' + (m % 60) + ' min ago';
+  }
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  function toast(msg, ms) {
+    const t = $('toast'); t.textContent = msg; t.style.display = 'block';
+    clearTimeout(toast._t); toast._t = setTimeout(() => { t.style.display = 'none'; }, ms || 4500);
+  }
+  function catName(c) { return c < 0 ? 'NO TAF' : C.CAT_NAME[c]; }
+  function verdictText(c) { return c < 0 ? 'NO TAF · 2 ALTN' : C.CAT_VERDICT[c]; }
+
+  /* ---------- flight sliders ---------- */
+  const SPAN_MIN = 31 * 60; // slider reach
+  function baseNow() { return Math.ceil(Date.now() / (5 * M)) * 5 * M; }
+  function syncFlight() {
+    const base = baseNow();
+    const sDep = $('sDep'), sEta = $('sEta'), sFt = $('sFt');
+    sDep.min = 0; sDep.max = SPAN_MIN;
+    sEta.min = 30; sEta.max = SPAN_MIN + 180;
+    // keep departure from slipping into the past
+    if (flight.dep != null && flight.dep < base) {
+      flight.dep = base;
+      if (flight.ft != null && flight.set.size === 3) flight.eta = flight.dep + flight.ft * M;
+    }
+    if (flight.dep != null) sDep.value = (flight.dep - base) / M;
+    if (flight.eta != null) sEta.value = (flight.eta - base) / M;
+    if (flight.ft != null) sFt.value = flight.ft;
+    $('vDep').textContent = flight.dep != null ? hhmm(flight.dep) : '--';
+    $('vEta').textContent = flight.eta != null ? hhmm(flight.eta) : '--';
+    $('vFt').textContent = flight.ft != null ? dur(flight.ft) : '--';
+    $('rowDep').classList.toggle('unset', flight.dep == null);
+    $('rowEta').classList.toggle('unset', flight.eta == null);
+    $('rowFt').classList.toggle('unset', flight.ft == null);
+    $('fHint').textContent = flight.set.size >= 3 ? 'Linked: moving departure or ETA keeps the flight time.'
+      : flight.set.size === 0 ? 'Set any two. The third is calculated.' : 'Set one more value.';
+  }
+  function onSlider(which) {
+    const base = baseNow();
+    const v = +$({ dep: 'sDep', ft: 'sFt', eta: 'sEta' }[which]).value;
+    const linked = flight.set.size >= 3;
+    if (which === 'dep') flight.dep = base + v * M;
+    if (which === 'eta') flight.eta = base + v * M;
+    if (which === 'ft') flight.ft = v;
+    if (!linked) {
+      flight.set.add(which);
+      if (flight.set.size === 2) {
+        if (!flight.set.has('eta')) flight.eta = flight.dep + flight.ft * M;
+        else if (!flight.set.has('ft')) {
+          flight.ft = Math.max(30, Math.min(180, Math.round((flight.eta - flight.dep) / (5 * M)) * 5));
+          flight.eta = flight.dep + flight.ft * M;
+        } else {
+          flight.dep = Math.max(base, flight.eta - flight.ft * M);
+          flight.eta = flight.dep + flight.ft * M;
+        }
+        flight.set = new Set(['dep', 'ft', 'eta']);
+      }
+    } else {
+      if (which === 'dep' || which === 'ft') flight.eta = flight.dep + flight.ft * M;
+      if (which === 'eta') {
+        flight.dep = Math.max(base, flight.eta - flight.ft * M);
+        flight.eta = flight.dep + flight.ft * M;
+      }
+    }
+    syncFlight();
+    drawAll();
+  }
+  ['dep', 'ft', 'eta'].forEach(w => $({ dep: 'sDep', ft: 'sFt', eta: 'sEta' }[w]).addEventListener('input', () => onSlider(w)));
+  $('fReset').addEventListener('click', () => { flight.dep = flight.ft = flight.eta = null; flight.set = new Set(); syncFlight(); drawAll(); });
+
+  /* ---------- data ---------- */
+  async function refresh() {
+    if (!list.length) { toast('Add an aerodrome first.'); return; }
+    const btn = $('refresh'); btn.disabled = true; btn.textContent = 'Fetching…';
+    try {
+      const r = await fetch('api/wx?ids=' + encodeURIComponent(list.join(',')), { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const j = await r.json();
+      if (!j || !j.stations) throw new Error(j && j.error ? j.error : 'Unexpected response');
+      if (data.demo) data = { fetchedAt: null, stations: {}, demo: false };
+      for (const id of Object.keys(j.stations)) data.stations[id] = Object.assign({}, j.stations[id], { fetchedAt: j.fetchedAt });
+      data.fetchedAt = j.fetchedAt || Date.now();
+      save(LS.data, data);
+      const missing = list.filter(id => !j.stations[id] || !j.stations[id].taf);
+      if (missing.length) toast('No TAF found for ' + missing.join(', ') + '.');
+    } catch (e) {
+      const when = data.fetchedAt ? ' Showing data fetched ' + ago(data.fetchedAt) + '.' : '';
+      toast('Could not reach the weather service (' + e.message + ').' + when, 6000);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Refresh';
+      render();
+    }
+  }
+  $('refresh').addEventListener('click', refresh);
+
+  async function loadStationList() {
+    let cached = load(LS.stations, null);
+    if (!cached || Date.now() - cached.t > 7 * 24 * H) {
+      try {
+        const r = await fetch('api/wx?list=NO');
+        if (r.ok) { const j = await r.json(); if (j.stations && j.stations.length) { cached = { t: Date.now(), stations: j.stations }; save(LS.stations, cached); } }
+      } catch (e) { /* offline: typed ICAO still works */ }
+    }
+    if (cached) {
+      $('stations').innerHTML = cached.stations.map(s => '<option value="' + esc(s.id) + '">' + esc(s.id + ' ' + s.name + (s.taf ? '' : ' (no TAF)')) + '</option>').join('');
+    }
+  }
+
+  // Sample data relative to now, for trying the page without the /api function
+  function demoData() {
+    const now = Date.now();
+    const f = (h, m) => { const d = new Date(Math.floor(now / H) * H + h * H + (m || 0) * M); return pad(d.getUTCDate()) + pad(d.getUTCHours()); };
+    const z = (h) => { const d = new Date(Math.floor(now / H) * H + h * H); return pad(d.getUTCDate()) + pad(d.getUTCHours()) + '00Z'; };
+    const per = (a, b) => f(a) + '/' + f(b);
+    const st = {
+      ENZV: { name: 'Stavanger/Sola', taf: `TAF ENZV ${z(-1)} ${per(0, 24)} 18015KT 9999 BKN012 BECMG ${per(3, 5)} 4000 RA BKN006 TEMPO ${per(5, 9)} 1200 RA BKN003 FM${f(11)}00 27020KT 9999 SCT020 BKN040=`, metar: `METAR ENZV ${z(0).slice(0, 4)}20Z 18014KT 9999 BKN014 09/06 Q1008=` },
+      ENBR: { name: 'Bergen/Flesland', taf: `TAF ENBR ${z(-1)} ${per(0, 24)} 20012KT 9999 FEW020 SCT045 PROB30 TEMPO ${per(6, 10)} 3000 SHRA BKN010=`, metar: `METAR ENBR ${z(0).slice(0, 4)}20Z 20011KT 9999 FEW022 SCT050 10/05 Q1010=` },
+      ENBS: { name: 'Båtsfjord', taf: `TAF ENBS ${z(-1)} ${per(0, 9)} 20020KT 9999 SCT006 PROB40 TEMPO ${per(0, 8)} 20020G30KT PROB30 TEMPO ${per(0, 3)} BKN006=`, metar: `METAR ENBS ${z(0).slice(0, 4)}20Z 20018KT 9999 SCT008 05/03 Q1024=` },
+      ENTC: { name: 'Tromsø', taf: `TAF ENTC ${z(-1)} ${per(0, 24)} VRB03KT CAVOK BECMG ${per(10, 12)} 0300 FG VV001 BECMG ${per(19, 21)} 9999 NSC=`, metar: `METAR ENTC ${z(0).slice(0, 4)}20Z VRB02KT CAVOK 02/M01 Q1021=` }
+    };
+    const out = { fetchedAt: now, demo: true, stations: {} };
+    for (const id in st) out.stations[id] = Object.assign({ source: 'Sample', tafIssue: now - H, metarTime: now - 10 * M, fetchedAt: now }, st[id]);
+    return out;
+  }
+
+  /* ---------- per-station computation ---------- */
+  let axis = null;
+  const model = {}; // icao -> { taf, metar, grid, verdicts }
+  function computeAxis() {
+    const now = Date.now();
+    const a0 = now - H;
+    const start = Math.floor((a0 + offMs(a0)) / H) * H - offMs(a0);
+    let end = start + 25 * H;
+    for (const id of list) { const m = model[id]; if (m && m.taf && !m.taf.error) end = Math.max(end, m.taf.valid.to); }
+    end = Math.min(end, start + 33 * H);
+    axis = { start, end };
+  }
+  function computeStation(id) {
+    const s = data.stations[id];
+    const m = { s };
+    if (s && s.taf) m.taf = C.parseTAF(s.taf, s.tafIssue || s.fetchedAt || Date.now());
+    if (s && s.metar) m.metar = C.parseMETAR(s.metar);
+    model[id] = m;
+  }
+  function computeGrids() {
+    for (const id of list) {
+      const m = model[id];
+      if (!m) continue;
+      m.grid = null; m.verdicts = null;
+      if (m.taf && !m.taf.error) {
+        // pad by 2 h so ETA windows at the edges are evaluated against real data
+        m.grid = C.buildGrid(m.taf, axis.start - 2 * H, axis.end + 2 * H, minima);
+        m.verdicts = C.buildVerdicts(m.grid);
+      }
+    }
+  }
+  function gridIndex(m, t) { return Math.floor((t - m.grid.start) / C.STEP_MS); }
+
+  /* ---------- drawing ---------- */
+  function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+  function mix(a, b, f) { const A = hexToRgb(a), B = hexToRgb(b); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * f)).join(',') + ')'; }
+
+  function draw(id) {
+    const m = model[id]; const cv = document.querySelector('canvas[data-id="' + id + '"]');
+    if (!cv) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = cv.clientWidth, Hh = cv.clientHeight;
+    if (!W) return;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr);
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, Hh);
+    const x = t => (t - axis.start) / (axis.end - axis.start) * W;
+    const yRaw = 10, hRaw = 6, yBar = 20, hBar = 26, yAxis = yBar + hBar + 4;
+
+    const partPx = [];
+    // bars
+    for (let px = 0; px < W; px++) {
+      const t = axis.start + (px + 0.5) / W * (axis.end - axis.start);
+      let rawC = -1, vc = -1, sh = 0, part = false;
+      if (m && m.grid) {
+        const i = gridIndex(m, t);
+        const r = m.grid.raw[i], v = m.verdicts[i];
+        if (r) { rawC = r.cat; vc = v.cat; sh = v.shoulder || 0; part = !!v.partial; }
+      }
+      g.fillStyle = COLORS[rawC];
+      g.fillRect(px, yRaw, 1, hRaw);
+      // verdict bar: shoulders keep the worse colour, blending toward the better one at the window edge
+      g.fillStyle = sh > 0 ? mix(COLORS[vc], COLORS[Math.min(3, vc + 1)], sh * 0.6) : COLORS[vc];
+      g.fillRect(px, yBar, 1, hBar);
+      if (part) partPx.push(px);
+    }
+    // hatch where the ETA window runs past the end of the TAF
+    if (partPx.length) {
+      g.save(); g.beginPath();
+      for (const px of partPx) g.rect(px, yBar, 1, hBar);
+      g.clip();
+      g.strokeStyle = 'rgba(11,14,20,.6)'; g.lineWidth = 2;
+      for (let k = partPx[0] - hBar; k < partPx[partPx.length - 1] + hBar; k += 7) { g.beginPath(); g.moveTo(k, yBar + hBar); g.lineTo(k + hBar, yBar); g.stroke(); }
+      g.restore();
+    }
+    // TAF validity edge shading
+    if (m && m.taf && !m.taf.error) {
+      g.fillStyle = 'rgba(11,14,20,.55)';
+      const b = x(m.taf.valid.to);
+      if (b < W) g.fillRect(b, yRaw, W - b, yBar + hBar - yRaw);
+    }
+
+    // axis
+    g.font = '10px "IBM Plex Mono", monospace'; g.textBaseline = 'top';
+    const t0 = Math.ceil((axis.start + offMs(axis.start)) / H) * H - offMs(axis.start);
+    for (let t = t0; t <= axis.end; t += H) {
+      const px = Math.round(x(t)) + 0.5;
+      const d = lt(t), hr = d.getUTCHours();
+      g.strokeStyle = hr === 0 ? '#7d8799' : '#2c3546';
+      g.beginPath(); g.moveTo(px, yAxis); g.lineTo(px, yAxis + (hr % 3 === 0 ? 5 : 3)); g.stroke();
+      if (hr % 3 === 0 && px > 8 && px < W - 14) {
+        g.fillStyle = hr === 0 ? '#d7dde8' : '#7d8799';
+        const lbl = hr === 0 ? pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) : pad(hr) + ':00';
+        g.textAlign = 'center'; g.fillText(lbl, px, yAxis + 7);
+      }
+    }
+
+    // ETA window bracket (±1 h solid, ±2 h faint), drawn above the raw strip
+    if (flight.eta != null) {
+      const e = x(flight.eta);
+      g.strokeStyle = 'rgba(255,255,255,.28)'; g.setLineDash([2, 3]);
+      g.beginPath(); g.moveTo(x(flight.eta - 2 * H), 4); g.lineTo(x(flight.eta + 2 * H), 4); g.stroke();
+      g.setLineDash([]);
+      g.strokeStyle = 'rgba(255,255,255,.75)';
+      g.beginPath(); g.moveTo(x(flight.eta - H), 2); g.lineTo(x(flight.eta - H), 7); g.lineTo(x(flight.eta + H), 7); g.lineTo(x(flight.eta + H), 2); g.stroke();
+      g.fillStyle = '#fff'; g.fillRect(Math.round(e) - 1, 2, 2, yBar + hBar);
+    }
+    if (flight.dep != null) {
+      const d = Math.round(x(flight.dep));
+      g.fillStyle = '#4ea8de'; g.fillRect(d - 1, yBar - 2, 2, hBar + 4);
+      g.beginPath(); g.moveTo(d - 4, yBar + hBar + 2); g.lineTo(d + 4, yBar + hBar + 2); g.lineTo(d, yBar + hBar - 3); g.fill();
+    }
+    // now
+    const n = Math.round(x(Date.now())) + 0.5;
+    g.strokeStyle = '#d7dde8'; g.setLineDash([3, 2]);
+    g.beginPath(); g.moveTo(n, yRaw - 2); g.lineTo(n, yBar + hBar + 2); g.stroke(); g.setLineDash([]);
+    // inspect cursor
+    if (inspect[id] != null) {
+      const c = Math.round(x(inspect[id])) + 0.5;
+      g.strokeStyle = '#4ea8de'; g.beginPath(); g.moveTo(c, 0); g.lineTo(c, yBar + hBar + 2); g.stroke();
+    }
+  }
+
+  function describe(m, at, asEta) {
+    if (!m || !m.grid) return '';
+    const i = gridIndex(m, at);
+    const r = m.grid.raw[i], v = m.verdicts[i];
+    if (!r || !v) return '';
+    const note = v.partial && m.taf ? ' The ETA window runs past the end of the TAF (' + hhmm(m.taf.valid.to) + '), so this uses the forecast available.' : '';
+    const src = x => (x && x.src ? (x.src.kind === 'BASE' ? 'Initial' : x.src.label) : 'TAF');
+    if (!asEta) {
+      let s = '<b>' + hhmm(at) + '</b> forecast ' + catName(r.cat) + (r.factor ? ', ' + esc(r.factor) : '') + (r.src ? ' (' + esc(src(r)) + ')' : '');
+      s += '. As ETA: <b>' + catName(v.cat) + '</b>';
+      return s + '.' + note;
+    }
+    if (v.cat < 0) return 'No TAF at ETA ' + hhmm(at) + '.';
+    let s = '<b>ETA ' + hhmm(at) + '</b>';
+    const cause = v.cause;
+    if (cause && v.causeIdx != null && v.causeIdx !== i) {
+      const off = (v.causeIdx - i) * C.STEP_MIN;
+      const when = off > 0 ? Math.abs(off) + ' min after ETA' : Math.abs(off) + ' min before ETA';
+      s += ' limited by ' + esc(src(cause)) + (cause.factor ? ', ' + esc(cause.factor) : '') + ', ' + when + '.';
+    } else if (cause && cause.factor) {
+      s += ' limited by ' + esc(src(cause)) + ', ' + esc(cause.factor) + '.';
+    } else s += ' clear of all limits.';
+    return s + note;
+  }
+
+  function updateCardDynamic(id) {
+    const m = model[id];
+    const card = document.querySelector('.card[data-id="' + id + '"]');
+    if (!card) return;
+    const badge = card.querySelector('.vbadge'), sub = card.querySelector('.vsub'), ro = card.querySelector('.readout');
+    if (flight.eta != null && m && m.grid) {
+      const v = m.verdicts[gridIndex(m, flight.eta)];
+      const c = v ? v.cat : -1;
+      badge.className = 'vbadge'; badge.style.background = COLORS[c];
+      badge.textContent = verdictText(c);
+      sub.textContent = 'at ETA ' + hhmm(flight.eta);
+    } else {
+      badge.className = 'vbadge none'; badge.style.background = '';
+      badge.textContent = m && m.grid ? 'Set ETA' : 'No TAF';
+      sub.textContent = '';
+    }
+    if (inspect[id] != null) ro.innerHTML = describe(m, inspect[id], false);
+    else if (flight.eta != null) ro.innerHTML = describe(m, flight.eta, true);
+    else ro.innerHTML = m && m.grid ? 'Tap the timeline to inspect a time.' : '';
+    draw(id);
+  }
+  function drawAll() { for (const id of list) updateCardDynamic(id); }
+
+  /* ---------- rendering ---------- */
+  function pillHTML(text, st, extraTag) {
+    const r = C.classify(st, minima);
+    const tag = r.cat === 2 ? '<span class="tag">+15</span>' : '';
+    return '<div class="pill" style="background:' + COLORS[r.cat] + '" title="' + esc(catName(r.cat) + (r.factor ? ': ' + r.factor : '')) + '">' + esc(text) + tag + (extraTag || '') + '</div>';
+  }
+  function groupText(g, taf) {
+    if (g.kind === 'BASE') {
+      const vf = new Date(taf.valid.from), vt = new Date(taf.valid.to);
+      return pad(vf.getUTCDate()) + pad(vf.getUTCHours()) + '/' + pad(vt.getUTCDate()) + pad(vt.getUTCHours() || 24) + ' ' + g.tokens.join(' ');
+    }
+    return g.label + ' ' + g.tokens.join(' ');
+  }
+
+  function render() {
+    for (const id of list) computeStation(id);
+    computeAxis(); computeGrids();
+    const cards = $('cards');
+    if (!list.length) {
+      cards.innerHTML = '<div class="empty">No aerodromes yet. Add one below.</div>';
+    } else if (!Object.keys(data.stations).length) {
+      cards.innerHTML = '<div class="empty">No weather loaded yet.<br><br><button class="btn primary" id="emptyRefresh">Refresh</button> <button class="btn" id="demoBtn">Load sample data</button></div>';
+      $('emptyRefresh').onclick = refresh;
+      $('demoBtn').onclick = () => { data = demoData(); list = Object.keys(data.stations); save(LS.list, list); render(); };
+    } else {
+      cards.innerHTML = list.map(id => {
+        const m = model[id]; const s = m.s || {};
+        let h = '<article class="card" data-id="' + id + '">';
+        h += '<div class="chead"><div><div class="icao">' + id + '</div><div class="sname">' + esc(s.name || (s.taf || s.metar ? '' : 'No data yet')) + '</div></div>';
+        h += '<div class="verdict"><div class="vbadge none"></div><div class="vsub"></div></div>';
+        h += '<button class="rm" data-rm="' + id + '" aria-label="Remove ' + id + '">×</button></div>';
+        if (m.metar) {
+          const old = s.metarTime && Date.now() - s.metarTime > 70 * M;
+          h += '<div class="metar"><div class="lbl"><span>METAR</span><span class="' + (old ? 'stale' : '') + '">' + (s.metarTime ? 'obs ' + ago(s.metarTime) : esc(m.metar.time || '')) + '</span></div>';
+          h += pillHTML(m.metar.raw.replace(/^(METAR|SPECI)\s+\S+\s+/, '').replace(/=$/, ''), m.metar.state) + '</div>';
+        }
+        h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
+        if (m.taf && !m.taf.error) {
+          h += '<div class="lbl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="pills">';
+          for (const g of m.taf.groups) if (g.state) h += pillHTML(groupText(g, m.taf), g.state);
+          h += '</div><details class="rawd"><summary>Show raw TAF</summary><div class="raw">' + esc(m.taf.raw) + '</div></details>';
+        } else if (m.taf && m.taf.error) {
+          h += '<div class="err">Could not decode TAF (' + esc(m.taf.error) + ').</div><div class="raw">' + esc(m.taf.raw) + '</div>';
+        } else if (s.fetchedAt) {
+          h += '<div class="err">No TAF available for ' + id + '.</div>';
+        }
+        return h + '</article>';
+      }).join('');
+      cards.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => {
+        list = list.filter(x => x !== b.dataset.rm); save(LS.list, list); render();
+      });
+      cards.querySelectorAll('canvas').forEach(cv => {
+        const id = cv.dataset.id;
+        const pick = ev => {
+          const r = cv.getBoundingClientRect();
+          const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+          inspect[id] = axis.start + Math.max(0, Math.min(1, px / r.width)) * (axis.end - axis.start);
+          updateCardDynamic(id);
+        };
+        cv.addEventListener('click', ev => {
+          if (inspect[id] != null && Math.abs((ev.clientX - cv.getBoundingClientRect().left) / cv.clientWidth * (axis.end - axis.start) + axis.start - inspect[id]) < 15 * M) { delete inspect[id]; updateCardDynamic(id); }
+          else pick(ev);
+        });
+      });
+    }
+    renderAge(); drawAll();
+  }
+
+  function renderAge() {
+    const el = $('age');
+    if (data.demo) { el.textContent = 'Sample data'; el.className = 'age stale'; return; }
+    if (!data.fetchedAt) { el.textContent = ''; return; }
+    el.textContent = 'Fetched ' + ago(data.fetchedAt);
+    el.className = 'age' + (Date.now() - data.fetchedAt > 30 * M ? ' stale' : '');
+  }
+
+  function renderLegend() {
+    const t = C.thresholds(minima);
+    $('legend').innerHTML =
+      '<span><i class="sw" style="background:' + COLORS[3] + '"></i>Green ' + t[3].cig + 'ft/' + t[3].vis + 'm</span>' +
+      '<span><i class="sw" style="background:' + COLORS[2] + '"></i>+15 min ' + t[2].cig + 'ft/' + t[2].vis + 'm</span>' +
+      '<span><i class="sw" style="background:' + COLORS[1] + '"></i>1 altn ' + t[1].vis + 'm</span>' +
+      '<span><i class="sw" style="background:' + COLORS[0] + '"></i>2 altn</span>' +
+      '<span><i class="sw" style="background:repeating-linear-gradient(135deg,#7d8799 0 2px,#232b3a 2px 4px)"></i>TAF ends within ETA window</span>';
+    $('mNote').textContent = 'Placeholder minima for every aerodrome. Green +15 uses DH + 400 ft and 3000 m. Amber needs RVR/VIS only (Type B).';
+  }
+
+  /* ---------- add / settings ---------- */
+  function addStation() {
+    const v = $('addIn').value.trim().toUpperCase().slice(0, 4);
+    if (!/^[A-Z0-9]{4}$/.test(v)) { toast('Enter a 4-letter ICAO code.'); return; }
+    if (list.includes(v)) { toast(v + ' is already in the list.'); return; }
+    list.push(v); save(LS.list, list); $('addIn').value = '';
+    render();
+    if (!data.demo) refresh();
+  }
+  $('addBtn').addEventListener('click', addStation);
+  $('addIn').addEventListener('keydown', e => { if (e.key === 'Enter') addStation(); });
+
+  $('setBtn').addEventListener('click', () => { $('settings').hidden = !$('settings').hidden; });
+  function fillMinima() { $('mDh').value = minima.dh; $('mRvr').value = minima.rvr; $('mGc').value = minima.greenCig; $('mGv').value = minima.greenVis; }
+  ['mDh', 'mRvr', 'mGc', 'mGv'].forEach(k => $(k).addEventListener('change', () => {
+    const n = { dh: +$('mDh').value, rvr: +$('mRvr').value, greenCig: +$('mGc').value, greenVis: +$('mGv').value };
+    for (const key in n) if (!isFinite(n[key]) || n[key] < 0) n[key] = C.DEFAULT_MINIMA[key];
+    minima = n; save(LS.minima, minima); renderLegend(); render();
+  }));
+  $('mReset').addEventListener('click', () => { minima = Object.assign({}, C.DEFAULT_MINIMA); save(LS.minima, minima); fillMinima(); renderLegend(); render(); });
+
+  /* ---------- clock ---------- */
+  let lastAxisStart = null;
+  setInterval(() => {
+    $('tz').textContent = tzLabel();
+    syncFlight();
+    const prev = axis && axis.start;
+    computeAxis();
+    if (axis.start !== prev) computeGrids();
+    renderAge(); drawAll();
+  }, 30e3);
+  window.addEventListener('resize', drawAll);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); } });
+
+  $('tz').textContent = tzLabel(); fillMinima(); renderLegend(); syncFlight(); render(); loadStationList();
+  window.__taf = { model, flight, onSlider }; // for debugging
+})();
+</script>
+</body>
+</html>
