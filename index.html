@@ -207,6 +207,13 @@ select{font:inherit;font-size:16px;color:inherit}
 .rrow.dragging{z-index:6;border-color:var(--amber);box-shadow:0 10px 26px rgba(0,0,0,.6);background:#161c29}
 .rrow.dragging .grip{cursor:grabbing;color:var(--amber);border-color:var(--amber)}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* v1.10: groups in the ETA window */
+.pill.inwin{outline:1.5px solid var(--blue);outline-offset:2px}
+.winnote{font-size:10px;color:var(--blue);margin:2px 0 7px;line-height:1.35}
+.winnote:empty{display:none}
+.hr.inwin{border-left-color:var(--blue)}
+.sw.swo{background:transparent;border:1.5px solid var(--blue)}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -261,7 +268,7 @@ select{font:inherit;font-size:16px;color:inherit}
     <button class="btn" id="addBtn">Add</button>
   </div>
 
-  <div class="version">TAF Timeline v1.9</div>
+  <div class="version">TAF Timeline v1.10</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="sr" role="status" aria-live="polite"></div>
@@ -356,14 +363,18 @@ select{font:inherit;font-size:16px;color:inherit}
     return { cig: c, cigText: txt };
   }
 
-  function merge(base, el) {
+  // g = the TAF group that supplies el. Elements a group does not state are carried over from the state
+  // before it, so s.prov records which group each of wind, visibility and clouds really came from.
+  function merge(base, el, g) {
     const s = {
       wind: base.wind, vis: base.vis, visText: base.visText,
       clouds: base.clouds, wx: base.wx, cavok: base.cavok
     };
-    if (el.wind) s.wind = el.wind;
-    if (el.vis !== undefined) { s.vis = el.vis; s.visText = el.visText || (el.cavok ? 'CAVOK' : null); s.cavok = !!el.cavok; }
-    if (el.clouds !== undefined) { s.clouds = el.clouds; if (!el.cavok) s.cavok = false; }
+    const bp = base.prov || {};
+    s.prov = { w: bp.w || null, v: bp.v || null, c: bp.c || null };
+    if (el.wind) { s.wind = el.wind; s.prov.w = g || null; }
+    if (el.vis !== undefined) { s.vis = el.vis; s.visText = el.visText || (el.cavok ? 'CAVOK' : null); s.cavok = !!el.cavok; s.prov.v = g || null; }
+    if (el.clouds !== undefined) { s.clouds = el.clouds; if (!el.cavok) s.cavok = false; s.prov.c = g || null; }
     if (el.wx !== undefined) s.wx = el.wx;
     const c = ceilingOf(s.clouds);
     s.cig = c.cig; s.cigText = c.cigText;
@@ -516,7 +527,7 @@ select{font:inherit;font-size:16px;color:inherit}
 
     // base timeline: segments [{from,to,states:[...] , src}]
     for (const g of groups) g.el = parseElements(g.tokens);
-    let state = merge(EMPTY, groups[0].el);
+    let state = merge(EMPTY, groups[0].el, groups[0]);
     groups[0].state = state;
     const base = [{ from: valid.from, to: valid.to, states: [{ s: state, src: groups[0] }] }];
     function cut(t) { // split base segment at time t, return index of segment starting at t
@@ -538,7 +549,7 @@ select{font:inherit;font-size:16px;color:inherit}
     const sorted = groups.slice(1).filter(g => g.kind === 'FM' || g.kind === 'BECMG').sort((a, b) => a.from - b.from);
     for (const g of sorted) {
       const prev = stateAt(Math.max(g.from - 1, valid.from));
-      const ns = merge(g.kind === 'FM' ? prev : prev, g.el);
+      const ns = merge(prev, g.el, g);
       g.state = ns;
       const endT = g.kind === 'FM' ? g.from : g.to;
       const i1 = cut(g.from);
@@ -552,7 +563,7 @@ select{font:inherit;font-size:16px;color:inherit}
     }
     // overlays (TEMPO / PROB)
     const overlays = groups.filter(g => g.kind === 'TEMPO' || g.kind === 'PROB' || g.kind === 'PROBTEMPO');
-    for (const g of overlays) g.state = merge(stateAt(g.from), g.el);
+    for (const g of overlays) g.state = merge(stateAt(g.from), g.el, g);
 
     return { icao, raw: raw.trim(), head, issue, valid, groups, base, overlays };
   }
@@ -572,7 +583,7 @@ select{font:inherit;font-size:16px;color:inherit}
     const baseNow = out.length ? out[out.length - 1].s : EMPTY;
     for (const o of taf.overlays) {
       if (skip && skip.has(o)) continue;   // PROB30 group disregarded by the commander
-      if (t >= o.from && t < o.to) out.push({ s: merge(baseNow, o.el), src: o });
+      if (t >= o.from && t < o.to) out.push({ s: merge(baseNow, o.el, o), src: o });
     }
     return out;
   }
@@ -639,6 +650,32 @@ select{font:inherit;font-size:16px;color:inherit}
     return res;
   }
 
+  // Cells either side of the ETA that the colour depends on. Green only looks +/- 1 h. Every lower colour
+  // also rests on the failed checks above it, so it uses the union of the green, +75kg fuel and amber windows.
+  function verdictWindow(vcat, ftMin) {
+    if (vcat === 3) return winCells(3, ftMin);
+    const a = winCells(3, ftMin), b = winCells(2, ftMin), c = winCells(1, ftMin);
+    return { b: Math.max(a.b, b.b, c.b), a: Math.max(a.a, b.a, c.a) };
+  }
+
+  // The TAF groups whose weather is used anywhere in that window: the groups in force, the TEMPO/PROB groups
+  // that apply, both old and new during a BECMG, and any earlier group whose wind, visibility or clouds
+  // are carried into the groups in force. Disregarded groups (skip) are left out.
+  function groupsInWindow(taf, grid, i, ftMin, vcat, skip) {
+    const out = new Set();
+    if (!taf || taf.error || vcat == null || vcat < 0) return out;
+    const w = verdictWindow(vcat, ftMin);
+    for (let j = i - w.b; j <= i + w.a; j++) {
+      const cands = candidatesAt(taf, grid.start + j * STEP_MS + STEP_MS / 2, skip);
+      if (!cands) continue;
+      for (const c of cands) {
+        if (c.src) out.add(c.src);
+        if (c.s.prov) for (const k of ['w', 'v', 'c']) if (c.s.prov[k]) out.add(c.s.prov[k]);
+      }
+    }
+    return out;
+  }
+
   // Below alternate minima anywhere in ETA +/- 1 h? Returns the nearest failing cell.
   function altBelowAt(grid, i) {
     let best = null;
@@ -695,7 +732,7 @@ select{font:inherit;font-size:16px;color:inherit}
   const api = {
     STEP_MIN, STEP_MS, CAT, CAT_NAME, CAT_VERDICT, FUEL, TYPE_A_DH, DEFAULT_CFG,
     parseTAF, parseMETAR, sysOf, eqKey, hasIndependent, hasNonGnss, windCheck, pickApproach,
-    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt
+    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TAFCore = api;
@@ -710,7 +747,7 @@ select{font:inherit;font-size:16px;color:inherit}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.9';
+  const VERSION = '1.10';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -1302,6 +1339,20 @@ select{font:inherit;font-size:16px;color:inherit}
       badge.textContent = vf ? vf.text : '';
       sub.textContent = '';
     }
+    // TAF groups used for the colour at the ETA get a thin blue outline
+    let winSet = null, winText = '';
+    if (flight.eta != null && m.gridAuto && vcat != null && vcat >= 0) {
+      winSet = C.groupsInWindow(m.taf, selGrid(m), gridIndex(m, flight.eta), flight.ft, vcat, m.skip);
+      const w = C.verdictWindow(vcat, flight.ft);
+      winText = 'Blue outline: TAF groups used for the colour at your ETA, window ' + hhmm(flight.eta - w.b * C.STEP_MS) + ' to ' + hhmm(flight.eta + w.a * C.STEP_MS) + ' local time' +
+        (vcat === 3 ? ' (ETA ±1 h).' : ' (the ' + C.FUEL + ' check looks up to 2 h either side, from departure at the earliest).');
+    }
+    m.winGroups = winSet;
+    card.querySelectorAll('.pills .pill[data-gi]').forEach(el => {
+      const g = m.taf && m.taf.groups[+el.dataset.gi];
+      el.classList.toggle('inwin', !!(winSet && g && winSet.has(g)));
+    });
+    const wn = card.querySelector('.winnote'); if (wn) wn.textContent = winText;
     // below alternate minima within ETA +/- 1 h
     const ab = flight.eta != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, flight.eta)) : null;
     altag.hidden = !ab;
@@ -1349,13 +1400,14 @@ select{font:inherit;font-size:16px;color:inherit}
 
   /* ---------- rendering ---------- */
   function pillHTML(text, m, st, opt) {
-    const btn = opt && m.hasMin ? '<button class="disc" data-act="disc" data-g="' + opt.gi + '">' + (opt.off ? 'Include' : 'Disregard') + '</button>' : '';
-    if (opt && opt.off) return '<div class="pill off">' + esc(text) + btn + '</div>';
-    if (!m.hasMin) return '<div class="pill neutral">' + esc(text) + btn + '</div>';
+    const btn = opt && opt.prob30 && m.hasMin ? '<button class="disc" data-act="disc" data-g="' + opt.gi + '">' + (opt.off ? 'Include' : 'Disregard') + '</button>' : '';
+    const dg = opt ? ' data-gi="' + opt.gi + '"' : '';
+    if (opt && opt.off) return '<div class="pill off"' + dg + '>' + esc(text) + btn + '</div>';
+    if (!m.hasMin) return '<div class="pill neutral"' + dg + '>' + esc(text) + btn + '</div>';
     const r = stateResult(m, st);
     const tag = r.cat === 2 ? '<span class="tag">' + C.FUEL.toUpperCase() + '</span>' : '';
     const title = r.apL + ': ' + catName(r.cat, m) + (r.factor ? ', ' + r.factor : '');
-    return '<div class="pill" style="background:' + COLORS[r.cat] + '" title="' + esc(title) + '">' + esc(text) + tag + btn + '</div>';
+    return '<div class="pill"' + dg + ' style="background:' + COLORS[r.cat] + '" title="' + esc(title) + '">' + esc(text) + tag + btn + '</div>';
   }
   function groupText(g, taf) {
     if (g.kind === 'BASE') {
@@ -1382,7 +1434,7 @@ select{font:inherit;font-size:16px;color:inherit}
     m.taf.groups.forEach(g => {
       if (!g.state) return;
       const off = m.skip && m.skip.has(g);
-      h += '<div class="hr"><div class="hh">' + esc(groupText(g, m.taf)) + '</div><div class="hn">' + esc(noteFor(g, off)) + '</div>' +
+      h += '<div class="hr' + (m.winGroups && m.winGroups.has(g) ? ' inwin' : '') + '"><div class="hh">' + esc(groupText(g, m.taf)) + '</div><div class="hn">' + esc(noteFor(g, off)) + '</div>' +
         '<div class="hv">wind ' + esc(windTxt(g.state.wind)) + ' · visibility ' + esc(visTxt(g.state)) + ' · ' + esc(cigTxt(g.state)) + '</div>';
       if (m.hasMin && !off) {
         const r = stateResult(m, g.state);
@@ -1415,8 +1467,8 @@ select{font:inherit;font-size:16px;color:inherit}
     }
     if (m.hasMin) h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
     if (m.taf && !m.taf.error) {
-      h += '<div class="lbl tafl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="pills">';
-      m.taf.groups.forEach((g, gi) => { if (g.state) h += pillHTML(groupText(g, m.taf), m, g.state, g.prob === 30 ? { gi, off: m.skip.has(g) } : null); });
+      h += '<div class="lbl tafl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="winnote"></div><div class="pills">';
+      m.taf.groups.forEach((g, gi) => { if (g.state) h += pillHTML(groupText(g, m.taf), m, g.state, { gi, off: m.skip.has(g), prob30: g.prob === 30 }); });
       h += '</div><details class="rawd"><summary>Show raw TAF</summary><div class="raw">' + esc(m.taf.raw) + '</div></details>';
       h += '<details class="rawd"><summary>How this was read</summary><div class="howread">' + howHTML(m) + '</div></details>';
     } else if (m.taf && m.taf.error) {
@@ -1555,6 +1607,7 @@ select{font:inherit;font-size:16px;color:inherit}
       '<span><i class="sw" style="background:' + COLORS[1] + '"></i>1 alternate</span>' +
       '<span><i class="sw" style="background:' + COLORS[0] + '"></i>2 alternates</span>' +
       '<span><i class="sw" style="background:repeating-linear-gradient(135deg,#7d8799 0 2px,#232b3a 2px 4px)"></i>TAF ends within ETA window</span>' +
+      '<span><i class="sw swo"></i>TAF group in the ETA window</span>' +
       '<span>' + WARN + 'User entered</span>';
     $('mNote').textContent = 'DH and RVR come from the approach data (RVR from AMC6 CAT.OP.MPA.110 Table 23 by DH and approach lights, 800 m minimum for LOC) or your custom entry. The ceiling for no alternate is the highest MSA minus AD elevation (AIP), never below DH + 400 ft. Without MSA data the ' + cfg.greenCig + ' ft proxy applies and the aerodrome shows NO MSA. DH 250 ft or more also needs a ceiling at or above DH for one alternate.';
   }
