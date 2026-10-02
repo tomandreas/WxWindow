@@ -4,7 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0e14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="TAF">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>TAF Timeline</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -86,7 +94,7 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;bac
 .lbl{font-size:10px;color:var(--muted);letter-spacing:.3px;margin-bottom:3px;display:flex;gap:8px}
 .lbl .stale{color:var(--amber)}
 .tl{margin-top:10px;position:relative}
-canvas{display:block;width:100%;height:74px;touch-action:pan-y}
+canvas{display:block;width:100%;height:81px;touch-action:pan-y}
 .readout{font-size:11px;min-height:2.9em;color:var(--muted);margin-top:4px}
 .readout b{color:var(--text);font-weight:600}
 .pills{display:flex;flex-direction:column;align-items:flex-start;gap:5px;margin-top:4px}
@@ -221,6 +229,12 @@ select{font:inherit;font-size:16px;color:inherit}
 .tipwarn{font-size:11px;color:var(--c-red);margin:4px 2px 0}
 .srow .sright{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none}
 .saltag{border:1px solid var(--c-red);color:var(--c-red);border-radius:5px;padding:0 5px;font-size:9.5px;font-weight:600;white-space:nowrap}
+
+/* v1.12 */
+.foot{margin-top:16px}
+.foot .minnote{margin:0 2px 6px}
+.airacwarn{margin:0 2px 10px;font-size:11px}
+.airacwarn[hidden]{display:none}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -261,10 +275,9 @@ select{font:inherit;font-size:16px;color:inherit}
   </section>
 
   <div class="legend" id="legend"></div>
-  <div class="minnote" id="minNote"></div>
-  <div class="minnote" id="airacNote"></div>
-  <div class="minnote" id="barNote">Top strip: the forecast at that time. Wide bar: the result if your ETA is then. Bracket: ETA ±1 h; faint line: the +75kg fuel window.</div>
+  <div class="minnote" id="barNote">Top strip: the forecast at that time. Wide bar: the result if your ETA is then. Solid bracket: ETA ±1 h. Dashed bracket: ETA ±2 h for +75kg fuel, starting at departure if that is later.</div>
   <div class="warn bad" id="minMissing" hidden></div>
+  <div class="minnote stale airacwarn" id="airacWarn" hidden></div>
   <div class="sumhead" id="sumHead" hidden><span>Aerodromes</span><button class="btn small" id="reorderBtn">Reorder</button></div>
   <div class="summary" id="summary"></div>
   <div id="cards"></div>
@@ -275,7 +288,12 @@ select{font:inherit;font-size:16px;color:inherit}
     <button class="btn" id="addBtn">Add</button>
   </div>
 
-  <div class="version">TAF Timeline v1.11</div>
+  <div class="foot">
+    <div class="minnote" id="minNote"></div>
+    <div class="minnote" id="airacNote"></div>
+  </div>
+
+  <div class="version">TAF Timeline v1.13</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="sr" role="status" aria-live="polite"></div>
@@ -753,7 +771,7 @@ select{font:inherit;font-size:16px;color:inherit}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.11';
+  const VERSION = '1.13';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -1096,7 +1114,7 @@ select{font:inherit;font-size:16px;color:inherit}
     const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, W, Hh);
     const x = t => (t - axis.start) / (axis.end - axis.start) * W;
-    const yRaw = 10, hRaw = 6, yBar = 20, hBar = 26, yAxis = yBar + hBar + 4;
+    const yRaw = 17, hRaw = 6, yBar = 27, hBar = 26, yAxis = yBar + hBar + 4;
     const sg = selGrid(m), vs = ensureVerdicts(m);
 
     const partPx = [];
@@ -1149,13 +1167,15 @@ select{font:inherit;font-size:16px;color:inherit}
     // ETA window bracket (±1 h solid; faint line = +75kg fuel window, starting at departure if that is later)
     if (flight.eta != null) {
       const e = x(flight.eta);
+      // +75kg fuel window: ETA -2 h (or departure, if later) to ETA +2 h. Dashed bracket on top.
       const left2 = flight.dep != null ? Math.max(flight.eta - 2 * H, flight.dep) : flight.eta - 2 * H;
-      g.strokeStyle = 'rgba(255,255,255,.28)'; g.setLineDash([2, 3]);
-      g.beginPath(); g.moveTo(x(left2), 4); g.lineTo(x(flight.eta + 2 * H), 4); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 1; g.setLineDash([3, 3]);
+      g.beginPath(); g.moveTo(x(left2), 8.5); g.lineTo(x(left2), 3.5); g.lineTo(x(flight.eta + 2 * H), 3.5); g.lineTo(x(flight.eta + 2 * H), 8.5); g.stroke();
       g.setLineDash([]);
-      g.strokeStyle = 'rgba(255,255,255,.75)';
-      g.beginPath(); g.moveTo(x(flight.eta - H), 2); g.lineTo(x(flight.eta - H), 7); g.lineTo(x(flight.eta + H), 7); g.lineTo(x(flight.eta + H), 2); g.stroke();
-      g.fillStyle = '#fff'; g.fillRect(Math.round(e) - 1, 2, 2, yBar + hBar);
+      // no-alternate and one-alternate window: ETA +/- 1 h. Solid bracket below it.
+      g.strokeStyle = 'rgba(255,255,255,.9)';
+      g.beginPath(); g.moveTo(x(flight.eta - H), 15.5); g.lineTo(x(flight.eta - H), 10.5); g.lineTo(x(flight.eta + H), 10.5); g.lineTo(x(flight.eta + H), 15.5); g.stroke();
+      g.fillStyle = '#fff'; g.fillRect(Math.round(e) - 1, 1, 2, yBar + hBar - 1);
     }
     if (flight.dep != null) {
       const d = Math.round(x(flight.dep));
@@ -1626,21 +1646,22 @@ select{font:inherit;font-size:16px;color:inherit}
     const now = Date.now(), ed = AERO_DATA.airac;
     const cur = list.filter(x => dayMs(x.e) <= now).pop();
     const next = list.find(x => dayMs(x.e) > now);
-    if (cur && cur.e > ed) return { text: 'AIP changed ' + fmtD(cur.e) + ' (AMDT ' + cur.a + '). These minima are from AIRAC ' + ed + ' and may be out of date. Replace minima.js.', warn: true };
-    if (next && now >= dayMs(next.p)) return { text: 'AIP change ' + fmtD(next.e) + ' (AMDT ' + next.a + ') was published ' + fmtD(next.p) + '. Update minima.js before it takes effect.', warn: true };
+    if (cur && cur.e > ed) return { text: 'AIP changed ' + fmtD(cur.e) + ' (AMDT ' + cur.a + '). These minima are from AIRAC ' + ed + ' and may be out of date. Replace minima.js.', short: 'AIP changed ' + fmtD(cur.e) + '. Minima may be out of date: replace minima.js.', warn: true };
+    if (next && now >= dayMs(next.p)) return { text: 'AIP change ' + fmtD(next.e) + ' (AMDT ' + next.a + ') was published ' + fmtD(next.p) + '. Update minima.js before it takes effect.', short: 'AIP change ' + fmtD(next.e) + ' is published. Update minima.js before it takes effect.', warn: true };
     if (next) return { text: 'Current. Next AIP change ' + fmtD(next.e) + ', published ' + fmtD(next.p) + ' (Avinor plan, may change).', warn: false };
     return { text: 'Current as far as the AIRAC list goes. It has no later date, so it needs updating.', warn: false };
   }
   function renderMinNote() {
     $('minMissing').hidden = !(dataMissing || dataSchemaBad);
     $('minMissing').textContent = dataMissing ? 'minima.js did not load, so there are no approach minima or MSA. Check that minima.js is in the repo next to index.html.' : 'minima.js is not the version this page expects. Replace it with the matching file.';
-    const el = $('minNote'), el2 = $('airacNote');
-    if (dataMissing) { el.textContent = 'No approach minima loaded.'; el.className = 'minnote stale'; el2.textContent = ''; return; }
+    const el = $('minNote'), el2 = $('airacNote'), wa = $('airacWarn');
+    if (dataMissing) { el.textContent = 'No approach minima loaded.'; el.className = 'minnote stale'; el2.textContent = ''; wa.hidden = true; return; }
     el.textContent = 'Approach minima and MSA: AIP, AIRAC ' + AERO_DATA.airac + ' (DH floor 200 ft, RVR by DH and approach lights, highest MSA).';
     el.className = 'minnote';
     const st = airacStatus();
     el2.textContent = st.text;
     el2.className = 'minnote' + (st.warn ? ' stale' : '');
+    wa.hidden = !st.warn; wa.textContent = st.warn ? st.short : '';
   }
   window.__airac = airacStatus;
   function renderLegend() {
