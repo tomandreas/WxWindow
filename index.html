@@ -28,6 +28,8 @@ body{
   background-size:24px 24px; min-height:100vh;
 }
 button,input{font:inherit;color:inherit}
+input:not([type=range]){font-size:16px}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 button{cursor:pointer}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .wrap{max-width:720px;margin:0 auto;padding:0 12px 40px}
@@ -47,6 +49,7 @@ h1 b{color:var(--amber);font-weight:400}
 
 /* flight panel */
 .flight{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:rgba(11,14,20,.94);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid var(--line);border-radius:8px;padding:8px 10px 6px;margin-bottom:12px}
+.tz{font-size:10px;color:var(--muted);margin-bottom:2px}
 .frow{display:grid;grid-template-columns:84px 58px 1fr;align-items:center;gap:8px;height:32px}
 .frow label{font-size:11px;color:var(--muted)}
 .fval{font-weight:600;font-size:14px;font-variant-numeric:tabular-nums}
@@ -138,6 +141,7 @@ details.rawd summary::-webkit-details-marker{display:none}
   </section>
 
   <section class="flight" aria-label="Flight times">
+    <div class="tz" id="tz"></div>
     <div class="frow dep unset" id="rowDep"><label for="sDep">Departure</label><span class="fval" id="vDep">--</span><input type="range" id="sDep" step="5"></div>
     <div class="frow ft unset" id="rowFt"><label for="sFt">Flight time</label><span class="fval" id="vFt">--</span><input type="range" id="sFt" min="30" max="180" step="5" value="60"></div>
     <div class="frow eta unset" id="rowEta"><label for="sEta">ETA</label><span class="fval" id="vEta">--</span><input type="range" id="sEta" step="5"></div>
@@ -153,7 +157,7 @@ details.rawd summary::-webkit-details-marker{display:none}
     <button class="btn" id="addBtn">Add</button>
   </div>
 
-  <div class="version">TAF Timeline v1.1</div>
+  <div class="version">TAF Timeline v1.3</div>
 </div>
 <div class="toast" id="toast" role="status"></div>
 
@@ -427,7 +431,7 @@ details.rawd summary::-webkit-details-marker{display:none}
       let best = INF;
       for (let j = i - w; j <= i + w; j++) {
         const x = grid.raw[j]; const cj = x ? x.cat : CAT.NODATA;
-        if (cj < lost && Math.abs(j - i) < best) { best = Math.abs(j - i); res.cause = x || { cat: CAT.NODATA, factor: 'NO TAF', src: null }; res.causeIdx = j; }
+        if (cj >= 0 && cj < lost && Math.abs(j - i) < best) { best = Math.abs(j - i); res.cause = x || { cat: CAT.NODATA, factor: 'NO TAF', src: null }; res.causeIdx = j; }
       }
     }
     return res;
@@ -441,7 +445,7 @@ details.rawd summary::-webkit-details-marker{display:none}
       for (let j = i - w; j <= i + w; j++) {
         const x = grid.raw[j];
         const cj = x ? x.cat : CAT.NODATA;
-        if (cj < c) {
+        if (cj >= 0 && cj < c) {   // cells outside the TAF carry no forecast: not a limit
           ok = false;
           const d = Math.abs(j - i);
           if (d < causeDist) { causeDist = d; causeIdx = j; cause = x || { cat: CAT.NODATA, factor: 'NO TAF', src: null }; }
@@ -460,12 +464,21 @@ details.rawd summary::-webkit-details-marker{display:none}
     for (let i = 0; i < grid.n; i++) {
       const vi = v[i], r = grid.raw[i];
       vi.shoulder = 0;
+      // does the ETA window run past the end of the TAF? (flagged, not coloured red)
+      vi.partial = false;
+      if (vi.cat >= 0) {
+        const pw = (WINDOW_MIN[vi.cat] || 60) / STEP_MIN;
+        for (let j = i - pw; j <= i + pw; j++) {
+          const x = grid.raw[j];
+          if (x && x.cat === CAT.NODATA) { vi.partial = true; break; }
+        }
+      }
       if (vi.cat >= 0 && r.cat > vi.cat) {
         const lost = vi.cat + 1;
         const w = WINDOW_MIN[lost] / STEP_MIN;
         let d = INF;
         for (let j = Math.max(0, i - w); j <= Math.min(grid.n - 1, i + w); j++) {
-          if (grid.raw[j].cat <= vi.cat) d = Math.min(d, Math.abs(j - i));
+          if (grid.raw[j].cat >= 0 && grid.raw[j].cat <= vi.cat) d = Math.min(d, Math.abs(j - i));
         }
         if (d === INF) d = w; // cause is outside the grid (e.g. end of TAF)
         vi.shoulder = Math.min(1, d / w);
@@ -498,12 +511,13 @@ details.rawd summary::-webkit-details-marker{display:none}
   else root.TAFCore = api;
 })(typeof window !== 'undefined' ? window : globalThis);
 
+
 </script>
 <script>
 (function () {
   'use strict';
   const C = window.TAFCore;
-  const VERSION = "1.1";
+  const VERSION = "1.3";
   const LS = { list: 'taft.list', data: 'taft.data', minima: 'taft.minima', stations: 'taft.stationlist' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -521,8 +535,14 @@ details.rawd summary::-webkit-details-marker{display:none}
 
   /* ---------- formatting ---------- */
   const pad = n => String(n).padStart(2, '0');
-  const hhmm = t => { const d = new Date(t); return pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + 'Z'; };
-  const ddhhmm = t => { const d = new Date(t); return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + 'Z'; };
+  const offMs = t => -new Date(t).getTimezoneOffset() * M;       // device time zone offset at time t
+  const lt = t => new Date(t + offMs(t));                         // read local fields with getUTC*()
+  const hhmm = t => { const d = lt(t); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+  const ddhhmm = t => { const d = lt(t); return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); };
+  function tzLabel() {
+    const o = Math.round(offMs(Date.now()) / M), a = Math.abs(o);
+    return 'Local time (UTC' + (o < 0 ? '-' : '+') + Math.floor(a / 60) + (a % 60 ? ':' + pad(a % 60) : '') + ')';
+  }
   const dur = m => Math.floor(m / 60) + ':' + pad(m % 60);
   function ago(t) {
     if (!t) return '';
@@ -658,7 +678,8 @@ details.rawd summary::-webkit-details-marker{display:none}
   const model = {}; // icao -> { taf, metar, grid, verdicts }
   function computeAxis() {
     const now = Date.now();
-    const start = Math.floor((now - H) / H) * H;
+    const a0 = now - H;
+    const start = Math.floor((a0 + offMs(a0)) / H) * H - offMs(a0);
     let end = start + 25 * H;
     for (const id of list) { const m = model[id]; if (m && m.taf && !m.taf.error) end = Math.max(end, m.taf.valid.to); }
     end = Math.min(end, start + 33 * H);
@@ -701,20 +722,31 @@ details.rawd summary::-webkit-details-marker{display:none}
     const x = t => (t - axis.start) / (axis.end - axis.start) * W;
     const yRaw = 10, hRaw = 6, yBar = 20, hBar = 26, yAxis = yBar + hBar + 4;
 
+    const partPx = [];
     // bars
     for (let px = 0; px < W; px++) {
       const t = axis.start + (px + 0.5) / W * (axis.end - axis.start);
-      let rawC = -1, vc = -1, sh = 0;
+      let rawC = -1, vc = -1, sh = 0, part = false;
       if (m && m.grid) {
         const i = gridIndex(m, t);
         const r = m.grid.raw[i], v = m.verdicts[i];
-        if (r) { rawC = r.cat; vc = v.cat; sh = v.shoulder || 0; }
+        if (r) { rawC = r.cat; vc = v.cat; sh = v.shoulder || 0; part = !!v.partial; }
       }
       g.fillStyle = COLORS[rawC];
       g.fillRect(px, yRaw, 1, hRaw);
       // verdict bar: shoulders keep the worse colour, blending toward the better one at the window edge
       g.fillStyle = sh > 0 ? mix(COLORS[vc], COLORS[Math.min(3, vc + 1)], sh * 0.6) : COLORS[vc];
       g.fillRect(px, yBar, 1, hBar);
+      if (part) partPx.push(px);
+    }
+    // hatch where the ETA window runs past the end of the TAF
+    if (partPx.length) {
+      g.save(); g.beginPath();
+      for (const px of partPx) g.rect(px, yBar, 1, hBar);
+      g.clip();
+      g.strokeStyle = 'rgba(11,14,20,.6)'; g.lineWidth = 2;
+      for (let k = partPx[0] - hBar; k < partPx[partPx.length - 1] + hBar; k += 7) { g.beginPath(); g.moveTo(k, yBar + hBar); g.lineTo(k + hBar, yBar); g.stroke(); }
+      g.restore();
     }
     // TAF validity edge shading
     if (m && m.taf && !m.taf.error) {
@@ -725,14 +757,15 @@ details.rawd summary::-webkit-details-marker{display:none}
 
     // axis
     g.font = '10px "IBM Plex Mono", monospace'; g.textBaseline = 'top';
-    for (let t = Math.ceil(axis.start / H) * H; t <= axis.end; t += H) {
+    const t0 = Math.ceil((axis.start + offMs(axis.start)) / H) * H - offMs(axis.start);
+    for (let t = t0; t <= axis.end; t += H) {
       const px = Math.round(x(t)) + 0.5;
-      const d = new Date(t), hr = d.getUTCHours();
+      const d = lt(t), hr = d.getUTCHours();
       g.strokeStyle = hr === 0 ? '#7d8799' : '#2c3546';
       g.beginPath(); g.moveTo(px, yAxis); g.lineTo(px, yAxis + (hr % 3 === 0 ? 5 : 3)); g.stroke();
       if (hr % 3 === 0 && px > 8 && px < W - 14) {
         g.fillStyle = hr === 0 ? '#d7dde8' : '#7d8799';
-        const lbl = hr === 0 ? pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) : pad(hr) + 'Z';
+        const lbl = hr === 0 ? pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) : pad(hr) + ':00';
         g.textAlign = 'center'; g.fillText(lbl, px, yAxis + 7);
       }
     }
@@ -768,11 +801,12 @@ details.rawd summary::-webkit-details-marker{display:none}
     const i = gridIndex(m, at);
     const r = m.grid.raw[i], v = m.verdicts[i];
     if (!r || !v) return '';
+    const note = v.partial && m.taf ? ' The ETA window runs past the end of the TAF (' + hhmm(m.taf.valid.to) + '), so this uses the forecast available.' : '';
     const src = x => (x && x.src ? (x.src.kind === 'BASE' ? 'Initial' : x.src.label) : 'TAF');
     if (!asEta) {
       let s = '<b>' + hhmm(at) + '</b> forecast ' + catName(r.cat) + (r.factor ? ', ' + esc(r.factor) : '') + (r.src ? ' (' + esc(src(r)) + ')' : '');
       s += '. As ETA: <b>' + catName(v.cat) + '</b>';
-      return s + '.';
+      return s + '.' + note;
     }
     if (v.cat < 0) return 'No TAF at ETA ' + hhmm(at) + '.';
     let s = '<b>ETA ' + hhmm(at) + '</b>';
@@ -784,7 +818,7 @@ details.rawd summary::-webkit-details-marker{display:none}
     } else if (cause && cause.factor) {
       s += ' limited by ' + esc(src(cause)) + ', ' + esc(cause.factor) + '.';
     } else s += ' clear of all limits.';
-    return s;
+    return s + note;
   }
 
   function updateCardDynamic(id) {
@@ -848,7 +882,7 @@ details.rawd summary::-webkit-details-marker{display:none}
         }
         h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
         if (m.taf && !m.taf.error) {
-          h += '<div class="lbl"><span>TAF</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="pills">';
+          h += '<div class="lbl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="pills">';
           for (const g of m.taf.groups) if (g.state) h += pillHTML(groupText(g, m.taf), g.state);
           h += '</div><details class="rawd"><summary>Show raw TAF</summary><div class="raw">' + esc(m.taf.raw) + '</div></details>';
         } else if (m.taf && m.taf.error) {
@@ -892,7 +926,8 @@ details.rawd summary::-webkit-details-marker{display:none}
       '<span><i class="sw" style="background:' + COLORS[3] + '"></i>Green ' + t[3].cig + 'ft/' + t[3].vis + 'm</span>' +
       '<span><i class="sw" style="background:' + COLORS[2] + '"></i>+15 min ' + t[2].cig + 'ft/' + t[2].vis + 'm</span>' +
       '<span><i class="sw" style="background:' + COLORS[1] + '"></i>1 altn ' + t[1].vis + 'm</span>' +
-      '<span><i class="sw" style="background:' + COLORS[0] + '"></i>2 altn</span>';
+      '<span><i class="sw" style="background:' + COLORS[0] + '"></i>2 altn</span>' +
+      '<span><i class="sw" style="background:repeating-linear-gradient(135deg,#7d8799 0 2px,#232b3a 2px 4px)"></i>TAF ends within ETA window</span>';
     $('mNote').textContent = 'Placeholder minima for every aerodrome. Green +15 uses DH + 400 ft and 3000 m. Amber needs RVR/VIS only (Type B).';
   }
 
@@ -920,6 +955,7 @@ details.rawd summary::-webkit-details-marker{display:none}
   /* ---------- clock ---------- */
   let lastAxisStart = null;
   setInterval(() => {
+    $('tz').textContent = tzLabel();
     syncFlight();
     const prev = axis && axis.start;
     computeAxis();
@@ -929,7 +965,7 @@ details.rawd summary::-webkit-details-marker{display:none}
   window.addEventListener('resize', drawAll);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); } });
 
-  fillMinima(); renderLegend(); syncFlight(); render(); loadStationList();
+  $('tz').textContent = tzLabel(); fillMinima(); renderLegend(); syncFlight(); render(); loadStationList();
   window.__taf = { model, flight, onSlider }; // for debugging
 })();
 </script>
