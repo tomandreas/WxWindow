@@ -286,6 +286,32 @@ details.fold>*:not(summary){margin-bottom:10px}
 .grow .gc{flex:1;min-width:0;font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .grow .ga{color:var(--muted);font-size:12px;white-space:nowrap}
 .lk{font-weight:500;color:var(--blue);cursor:pointer;padding:6px 2px}
+
+/* v1.16: add by name, swipe to remove, collapsible cards, expired TAF */
+.addwrap{position:relative}
+.sugg{position:absolute;left:0;right:0;bottom:calc(100% - 6px);z-index:25;background:#0e131d;border:1px solid var(--amber);border-radius:10px;padding:5px;box-shadow:0 -10px 28px rgba(0,0,0,.55)}
+.sugg[hidden]{display:none}
+.sug{display:flex;align-items:baseline;gap:10px;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:4px;min-height:44px}
+.sug:last-child{margin-bottom:0}
+.sug b{font-family:var(--display);font-weight:400;font-size:20px;letter-spacing:.5px;min-width:3.2em}
+.sug span{flex:1;min-width:0;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sug i{font-style:normal;font-size:10px;color:var(--muted)}
+.swr{position:relative;border-radius:8px;overflow:hidden}
+.swdel{position:absolute;right:0;top:0;bottom:0;width:88px;background:var(--c-red);color:#fff;border:none;font-weight:600;font-size:12px;border-radius:0 8px 8px 0}
+.swr .srow{position:relative;z-index:1;width:100%;transition:transform .16s ease;touch-action:pan-y;-webkit-user-select:none;user-select:none}
+.swr .srow.dragging{transition:none}
+.swr.open .srow{transform:translateX(-88px)}
+.toast.undo{align-items:center;gap:14px;padding:8px 8px 8px 14px}
+.toast.undo button{background:var(--surface);border:1px solid var(--blue);color:var(--blue);border-radius:6px;padding:6px 12px;font-weight:600;min-height:34px}
+.chead{cursor:pointer}
+.fchev{flex:none;color:var(--muted);margin-top:8px;margin-left:-4px;transition:transform .15s}
+.card.collapsed .fchev{transform:rotate(-90deg)}
+.card.collapsed > :not(.chead):not(.tl){display:none}
+.card.collapsed .tl .readout,.card.collapsed .sname,.card.collapsed .vsub,.card.collapsed .altag,.card.collapsed .disctag,.card.collapsed .windtag{display:none}
+.card.collapsed{padding-bottom:6px}
+.card.collapsed .tl{margin-top:0}
+.cardbtns{display:flex;gap:8px}
+.pill.exp{background:transparent;border:1px dashed var(--line);color:var(--faint)}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -319,18 +345,22 @@ details.fold>*:not(summary){margin-bottom:10px}
   <div class="summary" id="summary"></div>
   <div id="cards"></div>
 
-  <div class="add">
-    <input id="addIn" list="stations" placeholder="Add ICAO, e.g. ENZV" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
-    <datalist id="stations"></datalist>
-    <button class="btn" id="addBtn">Add</button>
+  <div class="addwrap" id="addWrap">
+    <div class="sugg" id="sugg" role="listbox" hidden></div>
+    <div class="add">
+      <input id="addIn" placeholder="Add by ICAO or airport name" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="done">
+      <button class="btn" id="addBtn">Add</button>
+    </div>
   </div>
 
-  <div class="version">TAF Timeline v1.15</div>
+  <div class="version">TAF Timeline v1.16</div>
 </div>
 
 <div class="wrap" id="editView" hidden>
   <div class="page-h"><h2>Edit aerodromes</h2><span class="grow1"></span><button class="btn primary small" id="editDone">Done</button></div>
   <div id="editList"></div>
+  <div class="sec">Cards</div>
+  <div class="cardbtns"><button class="btn small" id="colAll">Collapse all</button><button class="btn small" id="expAll">Expand all</button></div>
   <div class="sec">Save this list as a group</div>
   <div class="namebox"><input id="grpName" maxlength="16" placeholder="Name, e.g. Los HFT" autocomplete="off" spellcheck="false"><button class="btn primary" id="grpSave">Save</button></div>
   <div class="sub">You choose the name. The group appears as a button on the main page.</div>
@@ -359,6 +389,7 @@ details.fold>*:not(summary){margin-bottom:10px}
 </div>
 
 <div class="toast" id="toast" role="status"></div>
+<div class="toast undo" id="undoBar" role="status"><span id="undoTxt"></span><button id="undoBtn">Undo</button></div>
 <div class="sr" id="sr" role="status" aria-live="polite"></div>
 
 <script src="minima.js"></script>
@@ -783,6 +814,36 @@ details.fold>*:not(summary){margin-bottom:10px}
     return best ? { idx: best.j, cell: best.x } : null;
   }
 
+  // ---- find an aerodrome by ICAO code or by name ----
+  // Lower case, Norwegian letters and accents folded, punctuation turned into spaces.
+  function normName(s) {
+    return String(s || '').toLowerCase().replace(/ø/g, 'o').replace(/æ/g, 'ae').replace(/å/g, 'a')
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  }
+  // index: [{ id, name, taf }]. Returns up to `limit` matches: exact code, code prefix, name start, then any word start.
+  function matchStations(query, index, exclude, limit) {
+    const raw = String(query || '').trim();
+    if (raw.length < 2) return [];
+    const nq = normName(raw), toks = nq.split(' ').filter(Boolean);
+    if (!toks.length) return [];
+    const up = raw.toUpperCase().replace(/\s+/g, '');
+    const codeOk = /^[A-Z0-9]{2,4}$/.test(up) && (up.length >= 3 || up !== 'EN');   // "EN" alone would match every Norwegian aerodrome
+    const out = [], seen = new Set();
+    for (const e of index) {
+      if (!e || !e.id || seen.has(e.id) || (exclude && exclude.has(e.id))) continue;
+      const nn = normName(e.name), words = nn.split(' ').filter(Boolean);
+      let score = null;
+      if (codeOk && e.id === up) score = 0;
+      else if (codeOk && e.id.startsWith(up)) score = 1;
+      else if (nn.startsWith(nq)) score = 2;
+      else if (toks.every(t => words.some(w => w.startsWith(t)))) score = 3;
+      if (score == null) continue;
+      seen.add(e.id); out.push({ id: e.id, name: e.name || '', taf: e.taf !== false, score });
+    }
+    out.sort((a, b) => (a.score - b.score) || a.id.localeCompare(b.id));
+    return out.slice(0, limit || 6);
+  }
+
   // Below alternate minima anywhere in ETA +/- 1 h? Returns the nearest failing cell.
   function altBelowAt(grid, i) {
     let best = null;
@@ -839,7 +900,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   const api = {
     STEP_MIN, STEP_MS, CAT, CAT_NAME, CAT_VERDICT, FUEL, TYPE_A_DH, DEFAULT_CFG,
     parseTAF, parseMETAR, sysOf, eqKey, hasIndependent, hasNonGnss, windCheck, pickApproach,
-    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts, limitingCell
+    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts, limitingCell, normName, matchStations
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TAFCore = api;
@@ -854,8 +915,8 @@ details.fold>*:not(summary){margin-bottom:10px}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.15';
-  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups' };
+  const VERSION = '1.16';
+  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
   const $ = id => document.getElementById(id);
@@ -879,6 +940,8 @@ details.fold>*:not(summary){margin-bottom:10px}
   let cfg = loadCfg();
   let custom = load(LS.custom, {});          // { ICAO: [{ id, t, r, dh, rvr }] } user entered, this device only
   let msa = load(LS.msa, {});                // { ICAO: ft above aerodrome } user entered ceiling for no alternate
+  let collapsed = load(LS.col, {});          // { ICAO: true } cards the user has collapsed, remembered on this device
+  if (!collapsed || typeof collapsed !== 'object' || Array.isArray(collapsed)) collapsed = {};
   let groups = load(LS.groups, []);          // [{ n: 'Los HFT', ids: ['ENHF', ...] }] named by the user, this device only
   if (!Array.isArray(groups)) groups = [];
   let offshore = load(LS.off, {});           // { ICAO: true } offshore installation (never two independent approaches)
@@ -920,7 +983,12 @@ details.fold>*:not(summary){margin-bottom:10px}
     if (m && m.iso && c === 0) return 'BELOW PLANNING MINIMA';
     return C.CAT_NAME[c];
   }
+  // A TAF that has run out: nothing can be evaluated from it, and it must not look valid.
+  const tafExpired = m => !!(m && m.taf && !m.taf.error && m.taf.valid && m.taf.valid.to <= Date.now());
+  const fmtUTC = t => { const d = new Date(t); return pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ' UTC'; };
+  const expiredText = m => 'No valid TAF. The latest one ended ' + fmtUTC(m.taf.valid.to) + '.';
   function verdictText(c, m) {
+    if (c < 0 && tafExpired(m)) return m && m.iso ? 'TAF EXPIRED' : 'TAF EXPIRED · 2 ALTN';
     if (c < 0) return m && m.iso ? 'NO TAF' : 'NO TAF · 2 ALTN';
     if (m && m.iso && c === 1) return 'ISOLATED · PNR';
     if (m && m.iso && c === 0) return 'BELOW PLANNING MINIMA';
@@ -998,7 +1066,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let fetching = false, lastAttempt = 0;
   function busy() {   // do not re-draw under the user's fingers
     const a = document.activeElement;
-    return !!(drag || ui.edit || ui.view !== 'main' || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'range'));
+    return !!(drag || (sw && sw.active) || ui.edit || ui.view !== 'main' || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'range'));
   }
   function nextAutoAt() {
     if (data.demo || !list.length) return null;
@@ -1044,17 +1112,23 @@ details.fold>*:not(summary){margin-bottom:10px}
   }
   $('refresh').addEventListener('click', () => refresh());
 
+  // Index for "add by name": NOAA's station list (cached) plus the names built into minima.js. Built-in names win.
+  let stIndex = [];
+  function buildIndex() {
+    const map = new Map(), cached = load(LS.stations, null);
+    if (cached && cached.stations) cached.stations.forEach(s => { if (s && s.id) map.set(s.id, { id: s.id, name: s.name || '', taf: s.taf !== false }); });
+    for (const id of Object.keys(AERO_DATA.ap || {})) map.set(id, { id, name: AERO_DATA.ap[id].n || '', taf: true });
+    stIndex = [...map.values()];
+  }
   async function loadStationList() {
     let cached = load(LS.stations, null);
     if (!cached || Date.now() - cached.t > 7 * 24 * H) {
       try {
         const r = await fetch('api/wx?list=NO');
         if (r.ok) { const j = await r.json(); if (j.stations && j.stations.length) { cached = { t: Date.now(), stations: j.stations }; save(LS.stations, cached); } }
-      } catch (e) { /* offline: typed ICAO still works */ }
+      } catch (e) { /* offline: the built-in names and typed ICAO codes still work */ }
     }
-    if (cached) {
-      $('stations').innerHTML = cached.stations.map(s => '<option value="' + esc(s.id) + '">' + esc(s.id + ' ' + s.name + (s.taf ? '' : ' (no TAF)')) + '</option>').join('');
-    }
+    buildIndex();
   }
 
   // Sample data relative to now, for trying the page without the /api function
@@ -1124,6 +1198,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     if (dd && (!m.taf || m.taf.error || dd.key !== m.taf.raw)) delete disc[id];
     if (disc[id]) disc[id].idx.forEach(i => { const g = m.taf.groups[i]; if (g) m.skip.add(g); });
     // groups whose wind (tailwind limit, runway preference) is ignored, for the time that wind is in force
+    m.wasExpired = tafExpired(m);
     m.windOff = new Set();
     const wd = wdisc[id];
     if (wd && (!m.taf || m.taf.error || wd.key !== m.taf.raw)) delete wdisc[id];
@@ -1189,6 +1264,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   // Verdict at the ETA for the selected approach
   function verdictFor(m) {
     if (!m.hasMin) return null;
+    if (tafExpired(m)) return { cat: -1, text: verdictText(-1, m) };
     if (flight.eta == null || !m.gridAuto) return { cat: null, text: m.gridAuto ? 'Set ETA' : 'No TAF' };
     const v = ensureVerdicts(m)[gridIndex(m, flight.eta)];
     const c = v ? v.cat : -1;
@@ -1311,6 +1387,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   }
 
   function describe(m, at, asEta) {
+    if (tafExpired(m)) return expiredText(m);
     const sg = selGrid(m), vs = ensureVerdicts(m);
     if (!sg) return '';
     const i = gridIndex(m, at);
@@ -1505,7 +1582,8 @@ details.fold>*:not(summary){margin-bottom:10px}
     if (m.msaUser != null) lines.push(WARN + ' Ceiling for no alternate set by you: ' + m.msaUser + ' ft.');
     if (m.msa == null) lines.push('No MSA data: the no-alternate ceiling uses the ' + cfg.greenCig + ' ft proxy.');
     notes.innerHTML = lines.map(l => '<div class="nl">' + l + '</div>').join('');
-    if (inspect[id] != null) ro.innerHTML = describe(m, inspect[id], false);
+    if (tafExpired(m)) ro.innerHTML = expiredText(m);
+    else if (inspect[id] != null) ro.innerHTML = describe(m, inspect[id], false);
     else if (flight.eta != null) ro.innerHTML = describe(m, flight.eta, true);
     else ro.innerHTML = m.gridAuto ? 'Tap the timeline to inspect a time.' : '';
     const how = card.querySelector('.howread');
@@ -1556,18 +1634,20 @@ details.fold>*:not(summary){margin-bottom:10px}
   /* ---------- summary strip ---------- */
   function renderSummary() {
     const el = $('summary');
+    if (sw && sw.active) return;                       // never re-draw under a swipe
     if (!list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
     const T = dispTime();
+    const wrapRow = (id, row) => '<div class="swr' + (ui.swOpen === id ? ' open' : '') + '" data-sid="' + id + '"><button class="swdel" data-id="' + id + '" tabindex="-1" aria-label="Remove ' + id + '">Remove</button>' + row + '</div>';
     el.innerHTML = list.map(id => {
       const m = model[id];
       if (!m) return '';
-      if (!m.hasMin) return '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap muted">No minima data</span></button>';
+      if (!m.hasMin) return wrapRow(id, '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap muted">No minima data</span></button>');
       const d = dispState(m, T), vf = verdictFor(m);
       const bg = vf && vf.cat != null && vf.cat >= 0 ? COLORS[vf.cat] : null;
       const ab = flight.eta != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, flight.eta)) : null;
-      return '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap">' + esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
+      return wrapRow(id, '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap">' + esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
         '<span class="sright"><span class="sbd' + (bg ? '' : ' none') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + esc(vf ? vf.text : '') + '</span>' +
-        (ab ? '<span class="saltag">BELOW ALTN MINIMA</span>' : '') + '</span>' + (m.gridAuto ? '<canvas class="sline" data-sid="' + id + '"></canvas>' : '') + '</button>';
+        (ab ? '<span class="saltag">BELOW ALTN MINIMA</span>' : '') + '</span>' + (m.gridAuto ? '<canvas class="sline" data-sid="' + id + '"></canvas>' : '') + '</button>');
     }).join('');
     el.querySelectorAll('canvas.sline').forEach(cv => drawSline(cv, model[cv.dataset.sid]));
   }
@@ -1589,14 +1669,20 @@ details.fold>*:not(summary){margin-bottom:10px}
     }
   }
   $('summary').addEventListener('click', e => {
+    if (Date.now() - swipedAt < 400) return;                           // the click that ends a swipe
+    const del = e.target.closest('.swdel'); if (del) { removeAerodrome(del.dataset.id); return; }
     const b = e.target.closest('[data-goto]');
     if (!b) return;
+    if (b.parentNode.classList.contains('open')) { closeSw(); return; }   // a tap on an open row closes it
+    if (ui.swOpen) closeSw();                                              // a tap on another row closes the open one too
+    if (collapsed[b.dataset.goto]) toggleFold(b.dataset.goto, false);
     const card = document.querySelector('.card[data-id="' + b.dataset.goto + '"]');
     if (card) card.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
   });
 
   /* ---------- rendering ---------- */
   function pillHTML(text, m, st, opt) {
+    if (opt && tafExpired(m)) return '<div class="pill exp" data-gi="' + opt.gi + '">' + esc(text) + '</div>';   // expired: grey, no colour, no buttons
     const btn = (opt && opt.prob30 && m.hasMin ? '<button class="disc" data-act="disc" data-g="' + opt.gi + '">' + (opt.off ? 'Include' : 'Disregard') + '</button>' : '') +
       (opt && opt.wind && m.hasMin && !opt.off ? '<button class="disc" data-act="wind" data-g="' + opt.gi + '">' + (opt.wind === 'on' ? 'Use wind' : 'Ignore wind') + '</button>' : '');
     const wtag = opt && opt.wind === 'on' && !opt.off ? '<span class="tag wtag">WIND IGNORED</span>' : '';
@@ -1630,19 +1716,20 @@ details.fold>*:not(summary){margin-bottom:10px}
       if (g.kind === 'BECMG') return 'BECMG: the worse of old and new counts until the change period ends.';
       return g.label.split(' ')[0] + (g.kind === 'PROBTEMPO' ? ' TEMPO' : '') + ': counts in full while it applies' + (g.prob === 30 ? ' (you can disregard it).' : '.');
     };
-    let h = '';
+    const expd = tafExpired(m);
+    let h = expd ? '<div class="hn">This TAF has expired, so nothing is evaluated from it.</div>' : '';
     m.taf.groups.forEach(g => {
       if (!g.state) return;
       const off = m.skip && m.skip.has(g);
       h += '<div class="hr' + (m.winGroups && m.winGroups.has(g) ? ' inwin' : '') + '"><div class="hh">' + esc(groupText(g, m.taf)) + '</div><div class="hn">' + esc(noteFor(g, off)) + '</div>' +
         '<div class="hv">wind ' + esc(windTxt(g.state.wind)) + (m.windOff && g.state.prov && m.windOff.has(g.state.prov.w) ? ' (ignored)' : '') + ' · visibility ' + esc(visTxt(g.state)) + ' · ' + esc(cigTxt(g.state)) + '</div>';
-      if (m.hasMin && !off) {
+      if (m.hasMin && !off && !expd) {
         const r = stateResult(m, g.state);
         h += '<div class="hres" style="color:' + COLORS[r.cat] + '">→ ' + esc(r.apL) + ': ' + esc(catName(r.cat, m)) + (r.factor ? ', ' + esc(r.factor) : '') + '</div>';
       }
       h += '</div>';
     });
-    return h + (m.hasMin ? '<div class="hn">Results use the approach on the button, group by group, without ETA windows.</div>' : '');
+    return h + (m.hasMin && !expd ? '<div class="hn">Results use the approach on the button, group by group, without ETA windows.</div>' : '');
   }
 
   // METAR as plain text. Only the groups that decide a colour below green are coloured: the visibility, the
@@ -1656,7 +1743,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     if (m.hasMin) {
       const st = m.metar.state, ctx = ctxFor(m, pinnedAp(m));
       const isW = t => /^(\d{3}|VRB)\d{2,3}(G\d{2,3})?(KT|MPS)$/.test(t), isV = t => /^\d{4}(N|NE|E|SE|S|SW|W|NW|NDV)?$/.test(t) || t === 'CAVOK';
-      const isC = t => /^(BKN|OVC)\d{3}(CB|TCU)?$/.test(t) || /^VV(\d{3}|\/\/\/)$/.test(t);
+      const isC = t => /^(BKN|OVC)\d{3}(CB|TCU|\/\/\/)?$/.test(t) || /^VV(\d{3}|\/\/\/)$/.test(t);
       const height = t => (/^VV/.test(t) ? (/\//.test(t) ? 0 : +t.slice(2) * 100) : +t.slice(3, 6) * 100);
       let low = -1;
       for (let i = 1; i < end; i++) if (isC(toks[i]) && (low < 0 || height(toks[i]) < height(toks[low]))) low = i;
@@ -1675,10 +1762,10 @@ details.fold>*:not(summary){margin-bottom:10px}
   function cardHTML(id) {
     const m = model[id]; const s = m.s || {};
     const ad = AERO_DATA.ap[id];
-    let h = '<article class="card" data-id="' + id + '">';
+    let h = '<article class="card' + (collapsed[id] ? ' collapsed' : '') + '" data-id="' + id + '">';
     const nm = s.name || (ad && ad.n) || (s.taf || s.metar ? '' : 'No data yet');
     const tags = [nm, m.off ? 'offshore installation' : '', m.iso ? 'isolated' : ''].filter(Boolean).join(' · ');
-    h += '<div class="chead"><div><div class="icao">' + id + '</div><div class="sname">' + esc(tags) + '</div></div>';
+    h += '<div class="chead" data-act="fold" role="button" tabindex="0" aria-expanded="' + !collapsed[id] + '" aria-label="' + id + ': show or hide details"><span class="fchev" aria-hidden="true">' + CHEV + '</span><div><div class="icao">' + id + '</div><div class="sname">' + esc(tags) + '</div></div>';
     if (m.hasMin) h += '<div class="verdict"><div class="vbadge none"></div><div class="vsub"></div><div class="altag" hidden>BELOW ALTN MINIMA</div><div class="disctag" hidden></div><div class="windtag" hidden></div></div>';
     h += '<button class="rm" data-act="rm" aria-label="Remove ' + id + '">×</button></div>';
     if (m.hasMin) {
@@ -1694,7 +1781,8 @@ details.fold>*:not(summary){margin-bottom:10px}
     }
     if (m.hasMin) h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
     if (m.taf && !m.taf.error) {
-      h += '<div class="lbl new tafl"><span class="c2">TAF</span><span class="sm">codes in UTC · issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + (s.source ? ' · ' + esc(s.source) : '') + '</span></div><div class="pills">';
+      h += '<div class="lbl new tafl"><span class="c2">TAF</span><span class="sm">codes in UTC · issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + (s.source ? ' · ' + esc(s.source) : '') + '</span>' +
+        (tafExpired(m) ? '<span class="sm stale">EXPIRED ' + fmtUTC(m.taf.valid.to) + '</span>' : '') + '</div><div class="pills">';
       const noOff = Object.assign({}, ctxFor(m, pinnedAp(m)), { windOff: undefined });
       m.taf.groups.forEach((g, gi) => {
         if (!g.state) return;
@@ -1734,12 +1822,23 @@ details.fold>*:not(summary){margin-bottom:10px}
           updateCardDynamic(id);
         };
         cv.addEventListener('click', ev => {
+          if (collapsed[id]) { toggleFold(id); return; }        // a tap on the strips of a collapsed card opens it
           if (inspect[id] != null && Math.abs((ev.clientX - cv.getBoundingClientRect().left) / cv.clientWidth * (axis.end - axis.start) + axis.start - inspect[id]) < 15 * M) { delete inspect[id]; updateCardDynamic(id); }
           else pick(ev);
         });
       });
     }
     renderAge(); renderMinNote(); drawAll();
+  }
+
+  function toggleFold(id, force) {
+    const to = force == null ? !collapsed[id] : !!force;
+    if (to) collapsed[id] = true; else delete collapsed[id];
+    save(LS.col, collapsed);
+    const card = document.querySelector('.card[data-id="' + id + '"]');
+    if (card) { card.classList.toggle('collapsed', to); const hd = card.querySelector('.chead'); if (hd) hd.setAttribute('aria-expanded', String(!to)); }
+    if (to && ui.menu === id) ui.menu = null;
+    updateCardDynamic(id);
   }
 
   /* ---------- card events (delegated) ---------- */
@@ -1750,6 +1849,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     const card = t.closest('.card'); const id = card ? card.dataset.id : null;
     switch (t.dataset.act) {
       case 'warn': toast('User entered, not from AIP.'); break;
+      case 'fold': toggleFold(id); break;
       case 'menu': { const prev = ui.menu; ui.menu = prev === id ? null : id; if (prev && prev !== id) updateCardDynamic(prev); updateCardDynamic(id); break; }
       case 'pin': pin[id] = t.dataset.ap; ui.menu = null; drawAll(); break;
       case 'auto': delete pin[id]; ui.menu = null; drawAll(); break;
@@ -1780,11 +1880,11 @@ details.fold>*:not(summary){margin-bottom:10px}
         if (!wd.idx.length) delete wdisc[id];
         render(); break;
       }
-      case 'rm': list = list.filter(x => x !== id); save(LS.list, list); if (ui.menu === id) ui.menu = null; if (ui.edit && ui.edit.icao === id) { ui.edit = null; ui.draft = null; } render(); break;
+      case 'rm': removeAerodrome(id); break;
     }
   });
   $('cards').addEventListener('keydown', e => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.aprow[role=button], .ed[role=button]')) { e.preventDefault(); e.target.click(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.aprow[role=button], .ed[role=button], .chead[role=button]')) { e.preventDefault(); e.target.click(); }
   });
   const onField = e => {
     const f = e.target.dataset && e.target.dataset.f;
@@ -1937,6 +2037,73 @@ details.fold>*:not(summary){margin-bottom:10px}
     $('sr').textContent = row.dataset.id + ' moved to position ' + pos + ' of ' + list.length;
   });
 
+  /* ---------- remove an aerodrome, with Undo for 5 seconds ---------- */
+  let undoTimer = null, undoFn = null;
+  function showUndo(text, fn) {
+    clearTimeout(undoTimer); undoFn = fn;
+    $('undoTxt').textContent = text; $('undoBar').style.display = 'flex';
+    undoTimer = setTimeout(hideUndo, 5000);
+  }
+  function hideUndo() { clearTimeout(undoTimer); undoFn = null; $('undoBar').style.display = 'none'; }
+  $('undoBtn').addEventListener('click', () => { const f = undoFn; hideUndo(); if (f) f(); });
+  function removeAerodrome(id) {
+    const idx = list.indexOf(id); if (idx < 0) return;
+    const pinned = pin[id], opened = ui.swOpen === id;
+    list.splice(idx, 1); save(LS.list, list);
+    if (ui.menu === id) ui.menu = null;
+    if (ui.edit && ui.edit.icao === id) { ui.edit = null; ui.draft = null; }
+    if (ui.swOpen === id) ui.swOpen = null;
+    render();
+    showUndo(id + ' removed', () => {
+      if (list.includes(id)) return;
+      list.splice(Math.min(idx, list.length), 0, id); save(LS.list, list);
+      if (pinned) pin[id] = pinned;
+      render();
+    });
+  }
+
+  /* ---------- swipe a summary row to the left to remove it ---------- */
+  const SWW = 88;
+  let sw = null, swipedAt = 0;
+  function closeSw() { ui.swOpen = null; document.querySelectorAll('#summary .swr.open').forEach(w => w.classList.remove('open')); }
+  $('summary').addEventListener('pointerdown', e => {
+    const row = e.target.closest('.srow'); if (!row || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    const wrap = row.parentNode;
+    sw = { wrap, row, id: wrap.dataset.sid, x0: e.clientX, y0: e.clientY, base: wrap.classList.contains('open') ? -SWW : 0, dx: 0, active: false, pid: e.pointerId, w: row.offsetWidth };
+  });
+  document.addEventListener('pointermove', e => {
+    if (!sw || e.pointerId !== sw.pid) return;
+    const dx = e.clientX - sw.x0, dy = e.clientY - sw.y0;
+    if (!sw.active) {
+      if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { sw = null; return; }                 // a vertical scroll, not a swipe
+      if (Math.abs(dx) > 8 && Math.abs(dx) > 1.5 * Math.abs(dy)) {
+        sw.active = true; sw.row.classList.add('dragging');
+        document.querySelectorAll('#summary .swr.open').forEach(w => { if (w !== sw.wrap) w.classList.remove('open'); });
+        try { sw.row.setPointerCapture(sw.pid); } catch (_) { /* no capture */ }
+      } else return;
+    }
+    sw.dx = dx;
+    sw.row.style.transform = 'translateX(' + Math.max(-sw.w, Math.min(0, sw.base + dx)) + 'px)';
+  });
+  function endSwipe(e) {
+    if (!sw || (e && e.pointerId !== sw.pid)) return;
+    const s = sw; sw = null;
+    if (!s.active) return;
+    swipedAt = Date.now();
+    const x = s.base + s.dx;
+    s.row.classList.remove('dragging'); s.row.style.transform = '';
+    try { s.row.releasePointerCapture(s.pid); } catch (_) { /* released */ }
+    if (x < -s.w * 0.6) { s.wrap.classList.remove('open'); ui.swOpen = null; removeAerodrome(s.id); }       // all the way: remove
+    else if (x < -SWW / 2) { s.wrap.classList.add('open'); ui.swOpen = s.id; }                              // far enough: show Remove
+    else { s.wrap.classList.remove('open'); if (ui.swOpen === s.id) ui.swOpen = null; }
+  }
+  document.addEventListener('pointerup', endSwipe);
+  document.addEventListener('pointercancel', endSwipe);
+  $('summary').addEventListener('keydown', e => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && e.target.matches('.srow')) { e.preventDefault(); removeAerodrome(e.target.parentNode.dataset.sid); }
+  });
+  document.addEventListener('click', e => { if (ui.swOpen && !e.target.closest('#summary .swr')) closeSw(); });
+
   /* ---------- pages: main, edit, settings ---------- */
   function showView(v, push) {
     ui.view = v; ui.menu = null; ui.renaming = null; ui.confirmDel = null;
@@ -1997,6 +2164,8 @@ details.fold>*:not(summary){margin-bottom:10px}
     }).join('');
     const ri = $('renIn'); if (ri) ri.focus();
   }
+  $('colAll').addEventListener('click', () => { list.forEach(id => { collapsed[id] = true; }); save(LS.col, collapsed); toast('All cards collapsed.'); });
+  $('expAll').addEventListener('click', () => { collapsed = {}; save(LS.col, collapsed); toast('All cards expanded.'); });
   $('grpSave').addEventListener('click', saveGroup);
   $('grpName').addEventListener('keydown', e => { if (e.key === 'Enter') saveGroup(); });
   $('grpList').addEventListener('click', e => {
@@ -2027,16 +2196,36 @@ details.fold>*:not(summary){margin-bottom:10px}
   }
 
   /* ---------- add / settings ---------- */
-  function addStation() {
-    const v = $('addIn').value.trim().toUpperCase().slice(0, 4);
-    if (!/^[A-Z0-9]{4}$/.test(v)) { toast('Enter a 4-letter ICAO code.'); return; }
+  function addStation(pickId) {
+    const typed = $('addIn').value.trim(), up = typed.toUpperCase().replace(/\s+/g, '');
+    let v = pickId || null;
+    if (!v) {
+      if (stIndex.some(e => e.id === up)) v = up;                                     // a known ICAO code, exactly
+      else {
+        const hit = C.matchStations(typed, stIndex, new Set(list), 1)[0];             // else the best match for a name or code start
+        if (hit) v = hit.id;
+        else if (/^[A-Z0-9]{4}$/.test(up)) v = up;                                    // else an ICAO code the list does not know
+        else { toast(typed ? 'No aerodrome matches "' + typed + '".' : 'Type an ICAO code or an airport name.'); return; }
+      }
+    }
     if (list.includes(v)) { toast(v + ' is already in the list.'); return; }
-    list.push(v); save(LS.list, list); $('addIn').value = '';
+    list.push(v); save(LS.list, list); $('addIn').value = ''; hideSugg();
     render();
     if (!data.demo) refresh();
   }
-  $('addBtn').addEventListener('click', addStation);
-  $('addIn').addEventListener('keydown', e => { if (e.key === 'Enter') addStation(); });
+  function hideSugg() { const s = $('sugg'); s.hidden = true; s.innerHTML = ''; }
+  function showSugg() {
+    const q = $('addIn').value, s = $('sugg');
+    const hits = C.matchStations(q, stIndex, new Set(list), 6);
+    if (!hits.length) { hideSugg(); return; }
+    s.innerHTML = hits.map(h => '<button class="sug" type="button" role="option" data-id="' + h.id + '"><b>' + h.id + '</b><span>' + esc(h.name) + '</span>' + (h.taf ? '' : '<i>no TAF</i>') + '</button>').join('');
+    s.hidden = false;
+  }
+  $('addBtn').addEventListener('click', () => addStation());
+  $('addIn').addEventListener('input', showSugg);
+  $('addIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addStation(); } else if (e.key === 'Escape') hideSugg(); });
+  $('sugg').addEventListener('click', e => { const b = e.target.closest('.sug'); if (b) addStation(b.dataset.id); });
+  document.addEventListener('click', e => { if (!e.target.closest('#addWrap')) hideSugg(); });
 
   const CFG_FIELDS = { mGc: 'greenCig', mGv: 'greenVis', mTw: 'maxTw' };
   function fillCfg() { for (const id in CFG_FIELDS) $(id).value = cfg[CFG_FIELDS[id]]; }
@@ -2054,14 +2243,15 @@ details.fold>*:not(summary){margin-bottom:10px}
     const prev = axis && axis.start;
     computeAxis();
     if (axis.start !== prev) computeGrids();
+    if (list.some(id => model[id] && model[id].wasExpired !== tafExpired(model[id])) && !busy()) render();      // a TAF has just run out
     renderAge(); renderMinNote(); drawAll();
     autoCheck(false);
   }, 30e3);
   window.addEventListener('resize', drawAll);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); autoCheck(true); } });
 
-  $('tz').textContent = tzLabel(); fillCfg(); renderLegend(); syncFlight(); render(); loadStationList(); autoCheck(true);
-  window.__taf = { model, flight, onSlider, pin, ui, disc, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
+  $('tz').textContent = tzLabel(); fillCfg(); renderLegend(); syncFlight(); buildIndex(); render(); loadStationList(); autoCheck(true);
+  window.__taf = { model, flight, onSlider, pin, ui, disc, get collapsed() { return collapsed; }, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
 })();
 
 </script>
