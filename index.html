@@ -44,14 +44,14 @@ button{cursor:pointer}
 
 /* header */
 header{display:flex;align-items:center;gap:10px;padding:14px 0 10px}
-h1{white-space:nowrap;font-family:var(--display);font-weight:400;font-size:30px;letter-spacing:1px;margin:0;line-height:1;color:var(--text)}
+h1{white-space:nowrap;font-family:var(--display);font-weight:400;font-size:27px;letter-spacing:1px;margin:0;line-height:1;color:var(--text)}
 h1 b{color:var(--amber);font-weight:400}
-.hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.hdr-right{margin-left:auto;display:flex;gap:6px;align-items:center}
 .btn{background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:7px 11px;font-size:12px;font-weight:500}
 .btn.primary{background:var(--amber);border-color:var(--amber);color:#14100a;font-weight:600}
 .btn:disabled{opacity:.5;cursor:default}
 .icon-btn{background:none;border:1px solid var(--line);border-radius:6px;width:34px;height:32px;display:grid;place-items:center;color:var(--muted)}
-.age{font-size:11px;color:var(--muted);text-align:right;line-height:1.2}
+.age{font-size:10.5px;color:var(--muted);text-align:right;line-height:1.25;white-space:nowrap;flex:none}
 .age.stale{color:var(--amber)}
 .warn{font-size:11px;color:#c9b27a;border:1px solid #4a3b18;background:#1a150a;border-radius:6px;padding:6px 9px;margin-bottom:10px}
 
@@ -243,12 +243,55 @@ select{font:inherit;font-size:16px;color:inherit}
 .windtag{display:inline-block;margin-top:4px;border:1px solid var(--amber);color:var(--amber);border-radius:5px;padding:1px 6px;font-size:10px;font-weight:600}
 .windtag[hidden]{display:none}
 .pill .tag.wtag{background:transparent;border:1px solid rgba(0,0,0,.65);font-weight:700}
+
+/* v1.15: chips, pages, thin summary line, captions, grouped METAR */
+.sumhead{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 2px 8px}
+.chips{display:flex;gap:6px;overflow-x:auto;flex:1;min-width:0;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;font:600 11.5px var(--mono);padding:6px 11px;border:1px solid var(--line);border-radius:999px;background:var(--surface2);color:var(--muted);white-space:nowrap}
+.chip.on{border-color:var(--amber);color:var(--amber)}
+.srow{position:relative;padding-bottom:14px;min-height:52px}
+.sline{position:absolute;left:10px;width:calc(100% - 20px);bottom:2px;height:9px;pointer-events:none}
+.lbl.new{display:flex;align-items:baseline;gap:10px;margin:2px 0 6px}
+.lbl.new.tafl{margin-top:14px}
+.sumlbl{font-size:11px;color:var(--muted)}
+.lbl.new .c2{font-family:var(--display);font-size:21px;letter-spacing:.9px;color:var(--amber);line-height:1}
+.lbl.new .sm{font-size:10.5px;color:var(--muted)}
+.lbl.new .sm.stale{color:var(--amber)}
+.mline{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12.5px;line-height:2.05;word-break:break-word}
+.mg{border-radius:4px;padding:2px 5px;color:#0c0f14;font-weight:600}
+.page-h{display:flex;align-items:center;gap:10px;margin:14px 0 12px}
+.page-h .back{background:none;border:none;color:var(--blue);font-size:13px;padding:6px 4px;min-height:36px}
+.page-h h2{font-family:var(--display);font-weight:400;font-size:30px;letter-spacing:.5px;margin:0;line-height:1}
+.grow1{flex:1}
+.sec{font-size:10.5px;letter-spacing:.8px;color:var(--faint);margin:18px 2px 6px;text-transform:uppercase}
+.sec[hidden]{display:none}
+.sub{font-size:10.5px;color:var(--muted);margin:6px 2px 0}
+.set{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-bottom:5px;font-size:12px}
+.set>span{color:var(--text);flex:1;min-width:0}
+.set small{display:block;color:var(--muted);font-size:10.5px;line-height:1.35;margin-top:2px}
+.set input{width:84px;text-align:right;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;flex:none}
+.rule{font-size:11.5px;line-height:1.45;padding:7px 2px;border-bottom:1px solid var(--line)}
+.rule i{font-style:normal;color:var(--amber);font-weight:600}
+details.fold{margin-top:12px;border:1px dashed var(--line);border-radius:8px;padding:0 10px}
+details.fold>summary{font-size:12px;color:var(--muted);padding:11px 0;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:'›';font-size:16px;line-height:1}
+details.fold[open]>summary::after{content:'⌄'}
+details.fold>*:not(summary){margin-bottom:10px}
+.namebox{display:flex;gap:8px}
+.namebox input,.gin{flex:1;min-width:0;background:var(--surface);border:1px solid var(--blue);border-radius:6px;padding:8px 10px}
+.grow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:5px}
+.grow .gn{font-weight:600;font-size:13px;min-width:5.2em}
+.grow .gc{flex:1;min-width:0;font-size:10.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grow .ga{color:var(--muted);font-size:12px;white-space:nowrap}
+.lk{font-weight:500;color:var(--blue);cursor:pointer;padding:6px 2px}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
-<div class="wrap">
+<div class="wrap" id="mainView">
   <header>
     <h1>TAF <b>Timeline</b></h1>
     <div class="hdr-right">
@@ -260,19 +303,9 @@ select{font:inherit;font-size:16px;color:inherit}
     </div>
   </header>
 
-  <div class="warn">Advisory only. Colours use ceiling, visibility and wind only. RVR reports, METAR trends, thunderstorms, icing and shear are not modelled. Always verify against the official forecast, AIP and OM.</div>
-
-  <section class="panel" id="settings" hidden>
-    <h2>Settings</h2>
-    <div class="grid2">
-      <label>Green ceiling (ft)<input type="number" id="mGc" inputmode="numeric" step="100" min="0"></label>
-      <label>Green visibility (m)<input type="number" id="mGv" inputmode="numeric" step="500" min="0"></label>
-      <label>Max tailwind (kt)<input type="number" id="mTw" inputmode="numeric" step="1" min="0"></label>
-      <label>Max crosswind (kt)<input type="number" id="mXw" inputmode="numeric" step="1" min="0"></label>
-    </div>
-    <p class="note" id="mNote"></p>
-    <button class="btn" id="mReset">Reset to defaults</button>
-  </section>
+  <div class="warn">Advisory only. Colours use ceiling, visibility and tailwind only. RVR reports, METAR trends, thunderstorms, icing and shear are not modelled. Always verify against the official forecast, AIP and OM.</div>
+  <div class="warn bad" id="minMissing" hidden></div>
+  <div class="minnote stale airacwarn" id="airacWarn" hidden></div>
 
   <section class="flight" aria-label="Flight times">
     <div class="tz" id="tz"></div>
@@ -282,11 +315,7 @@ select{font:inherit;font-size:16px;color:inherit}
     <div class="fhint"><span id="fHint">Set any two. The third is calculated.</span><button id="fReset">Clear</button></div>
   </section>
 
-  <div class="legend" id="legend"></div>
-  <div class="minnote" id="barNote">Top strip: the forecast at that time. Wide bar: the result if your ETA is then. Solid bracket: ETA ±1 h. Dashed bracket: ETA ±2 h for +75kg fuel, starting at departure if that is later.</div>
-  <div class="warn bad" id="minMissing" hidden></div>
-  <div class="minnote stale airacwarn" id="airacWarn" hidden></div>
-  <div class="sumhead" id="sumHead" hidden><span>Aerodromes</span><button class="btn small" id="reorderBtn">Reorder</button></div>
+  <div class="sumhead" id="sumHead" hidden><div class="chips" id="chips"></div><button class="btn small" id="editBtn">Edit</button></div>
   <div class="summary" id="summary"></div>
   <div id="cards"></div>
 
@@ -296,13 +325,39 @@ select{font:inherit;font-size:16px;color:inherit}
     <button class="btn" id="addBtn">Add</button>
   </div>
 
-  <div class="foot">
+  <div class="version">TAF Timeline v1.15</div>
+</div>
+
+<div class="wrap" id="editView" hidden>
+  <div class="page-h"><h2>Edit aerodromes</h2><span class="grow1"></span><button class="btn primary small" id="editDone">Done</button></div>
+  <div id="editList"></div>
+  <div class="sec">Save this list as a group</div>
+  <div class="namebox"><input id="grpName" maxlength="16" placeholder="Name, e.g. Los HFT" autocomplete="off" spellcheck="false"><button class="btn primary" id="grpSave">Save</button></div>
+  <div class="sub">You choose the name. The group appears as a button on the main page.</div>
+  <div class="sec" id="grpHead" hidden>Your groups</div>
+  <div id="grpList"></div>
+</div>
+
+<div class="wrap" id="settingsView" hidden>
+  <div class="page-h"><button class="back" id="setBack">‹ Back</button><h2>Settings</h2></div>
+  <div class="set"><span>Max tailwind (kt)</span><input type="number" id="mTw" inputmode="numeric" step="1" min="0"></div>
+  <details class="fold">
+    <summary>Green defaults</summary>
+    <div class="set"><span>Green ceiling (ft)<small>Used only for aerodromes without a listed MSA. With an MSA the ceiling is MSA minus elevation.</small></span><input type="number" id="mGc" inputmode="numeric" step="100" min="0"></div>
+    <div class="set"><span>Green visibility (m)<small>Used at every aerodrome. The MSA says nothing about visibility.</small></span><input type="number" id="mGv" inputmode="numeric" step="500" min="0"></div>
+    <button class="btn small" id="mReset">Reset to defaults</button>
+  </details>
+  <div class="sec">Rules</div>
+  <div id="rules"></div>
+  <details class="fold">
+    <summary>Data and legend</summary>
+    <div class="legend" id="legend"></div>
+    <div class="minnote" id="barNote">Top strip: the forecast at that time. Wide bar: the result if your ETA is then. Solid bracket: ETA ±1 h. Dashed bracket: ETA ±2 h for +75kg fuel, starting at departure if that is later.</div>
     <div class="minnote" id="minNote"></div>
     <div class="minnote" id="airacNote"></div>
-  </div>
-
-  <div class="version">TAF Timeline v1.14</div>
+  </details>
 </div>
+
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="sr" role="status" aria-live="polite"></div>
 
@@ -322,7 +377,7 @@ select{font:inherit;font-size:16px;color:inherit}
   const TYPE_A_DH = 250;              // DH/MDH at or above this = Type A approach
   const INF = 99999;
 
-  const DEFAULT_CFG = { greenCig: 1500, greenVis: 5000, maxTw: 5, maxXw: 20 };
+  const DEFAULT_CFG = { greenCig: 1500, greenVis: 5000, maxTw: 5 };
 
   /* ---------- time ---------- */
   // Resolve a TAF day/hour/minute to a Date close to the reference time.
@@ -432,19 +487,16 @@ select{font:inherit;font-size:16px;color:inherit}
 
   // Wind components against a runway. Runway heading = runway number x 10 (36 = 360).
   function windCheck(wind, ap, cfg) {
-    const out = { ok: true, hw: 0, xw: 0, tw: 0, reason: '', short: '' };
+    const out = { ok: true, hw: 0, tw: 0, reason: '', short: '' };
     if (!wind || !ap.r || wind.dir === 'VRB') return out;
     const spd = Math.max(wind.spd || 0, wind.gust || 0);        // gusts count
     const hdg = (parseInt(ap.r, 10) || 0) * 10;
     const diff = ((+wind.dir - hdg + 540) % 360) - 180;
     const rad = diff * Math.PI / 180;
-    out.hw = spd * Math.cos(rad);
-    out.xw = Math.abs(spd * Math.sin(rad));
+    out.hw = spd * Math.cos(rad);                    // headwind component (negative = tailwind), used to pick the runway
     out.tw = Math.max(0, -out.hw);
-    const tw = Math.round(out.tw), xw = Math.round(out.xw), bad = [], sh = [];
-    if (tw > cfg.maxTw) { bad.push('tailwind ' + tw + ' kt, limit ' + cfg.maxTw + ' kt'); sh.push('TW ' + tw + 'KT'); }
-    if (xw > cfg.maxXw) { bad.push('crosswind ' + xw + ' kt, limit ' + cfg.maxXw + ' kt'); sh.push('XW ' + xw + 'KT'); }
-    if (bad.length) { out.ok = false; out.reason = bad.join(' and '); out.short = sh.join(' + '); }
+    const tw = Math.round(out.tw);
+    if (tw > cfg.maxTw) { out.ok = false; out.reason = 'tailwind ' + tw + ' kt, limit ' + cfg.maxTw + ' kt'; out.short = 'TW ' + tw + 'KT'; }
     return out;
   }
 
@@ -481,15 +533,15 @@ select{font:inherit;font-size:16px;color:inherit}
     const vis = s.vis == null ? INF : s.vis, cig = s.cig == null ? INF : s.cig;
     let wc = 0;
     for (const c of [3, 2, 1]) if (vis >= th[c].vis && cig >= th[c].cig) { wc = c; break; }
-    let cat = wc, factor = '';
+    let cat = wc, factor = '', sev = Infinity;
     if (wc === 2 && !indep) { cat = 1; factor = 'no second independent approach for no alternate with ' + FUEL; }
     else if (cat < 3) {
       const nx = th[cat + 1], f = [];      // what holds the colour back: the weather as it is
-      if (vis < nx.vis) f.push('visibility ' + fmtVis(vis));
-      if (cig < nx.cig) f.push('ceiling ' + cig + ' ft');
+      if (vis < nx.vis) { f.push('visibility ' + fmtVis(vis)); sev = Math.min(sev, vis / nx.vis); }
+      if (cig < nx.cig) { f.push('ceiling ' + cig + ' ft'); sev = Math.min(sev, cig / nx.cig); }
       factor = f.join('; ');
     }
-    return { cat, factor };
+    return { cat, factor, sev };
   }
 
   // Is the aerodrome usable as an alternate? RVR/VIS + 400 m and ceiling at or above DH + 200 ft
@@ -502,17 +554,17 @@ select{font:inherit;font-size:16px;color:inherit}
 
   // ctx: { pool: [approach], forced: bool, cfg, indep }
   // ctx.windOff: TAF groups whose wind the commander has chosen to ignore. A state whose wind comes from
-  // one of them is evaluated as if no wind were given: no crosswind/tailwind limit, pick by lowest minima.
+  // one of them is evaluated as if no wind were given: no tailwind limit, pick by lowest minima.
   function evalState(state, ctx) {
     const wi = !!(ctx.windOff && state.prov && state.prov.w && ctx.windOff.has(state.prov.w));
     if (wi) state = Object.assign({}, state, { wind: null });
     let ap, wc;
     if (ctx.forced) { ap = ctx.pool[0]; wc = windCheck(state.wind, ap, ctx.cfg); }
     else { const p = pickApproach(state, ctx.pool, ctx.cfg); ap = p.ap; wc = p.wc; }
-    if (!wc.ok) return { cat: CAT.RED, factor: wc.reason, apId: ap.id, apL: ap.l, windFail: true, windShort: wc.short, altOk: false, altFactor: wc.reason, windIgn: wi };
+    if (!wc.ok) return { cat: CAT.RED, factor: wc.reason, apId: ap.id, apL: ap.l, windFail: true, windShort: wc.short, altOk: false, altFactor: wc.reason, windIgn: wi, sev: 0 };
     const r = classifyApproach(state, ap, ctx.cfg, ctx.indep, ctx.iso);
     const af = ctx.iso ? '' : altCheck(state, ap);
-    return { cat: r.cat, factor: r.factor, apId: ap.id, apL: ap.l, windFail: false, windShort: '', altOk: !af, altFactor: af, windIgn: wi };
+    return { cat: r.cat, factor: r.factor, sev: r.sev, apId: ap.id, apL: ap.l, windFail: false, windShort: '', altOk: !af, altFactor: af, windIgn: wi };
   }
   // Would ignoring this state's wind give a better colour? (used to decide whether to offer "Ignore wind")
   function windCosts(state, ctx) {
@@ -636,7 +688,7 @@ select{font:inherit;font-size:16px;color:inherit}
     let worst = null, altBad = null;
     for (const x of c) {
       const r = evalState(x.s, ctx);
-      if (!worst || r.cat < worst.cat) worst = Object.assign({ src: x.src }, r);
+      if (!worst || r.cat < worst.cat || (r.cat === worst.cat && r.sev < worst.sev)) worst = Object.assign({ src: x.src }, r);
       if (r.altOk === false && !altBad) altBad = r;
     }
     worst.altOk = !altBad; worst.altFactor = altBad ? altBad.altFactor : '';
@@ -717,6 +769,20 @@ select{font:inherit;font-size:16px;color:inherit}
     return out;
   }
 
+  // The most limiting weather inside the window the colour rests on: lowest colour first, then the weather
+  // furthest below the next colour's requirement, then the one nearest the ETA.
+  function limitingCell(grid, i, ftMin, vcat) {
+    if (vcat == null || vcat < 0) return null;
+    const w = verdictWindow(vcat, ftMin); let best = null;
+    for (let j = i - w.b; j <= i + w.a; j++) {
+      const x = grid.raw[j];
+      if (!x || x.cat === CAT.NODATA) continue;
+      const k = [x.cat, x.sev == null ? Infinity : x.sev, Math.abs(j - i)];
+      if (!best || k[0] < best.k[0] || (k[0] === best.k[0] && (k[1] < best.k[1] || (k[1] === best.k[1] && k[2] < best.k[2])))) best = { j, x, k };
+    }
+    return best ? { idx: best.j, cell: best.x } : null;
+  }
+
   // Below alternate minima anywhere in ETA +/- 1 h? Returns the nearest failing cell.
   function altBelowAt(grid, i) {
     let best = null;
@@ -773,7 +839,7 @@ select{font:inherit;font-size:16px;color:inherit}
   const api = {
     STEP_MIN, STEP_MS, CAT, CAT_NAME, CAT_VERDICT, FUEL, TYPE_A_DH, DEFAULT_CFG,
     parseTAF, parseMETAR, sysOf, eqKey, hasIndependent, hasNonGnss, windCheck, pickApproach,
-    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts
+    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts, limitingCell
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TAFCore = api;
@@ -788,8 +854,8 @@ select{font:inherit;font-size:16px;color:inherit}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.14';
-  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore' };
+  const VERSION = '1.15';
+  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
   const $ = id => document.getElementById(id);
@@ -813,11 +879,13 @@ select{font:inherit;font-size:16px;color:inherit}
   let cfg = loadCfg();
   let custom = load(LS.custom, {});          // { ICAO: [{ id, t, r, dh, rvr }] } user entered, this device only
   let msa = load(LS.msa, {});                // { ICAO: ft above aerodrome } user entered ceiling for no alternate
+  let groups = load(LS.groups, []);          // [{ n: 'Los HFT', ids: ['ENHF', ...] }] named by the user, this device only
+  if (!Array.isArray(groups)) groups = [];
   let offshore = load(LS.off, {});           // { ICAO: true } offshore installation (never two independent approaches)
   const pin = {};                            // icao -> approach id pinned this session
   const disc = {};                           // icao -> { key: raw TAF, idx: [group indexes] } PROB30 groups disregarded
   const wdisc = {};                          // icao -> { key, idx } groups whose wind is ignored (this TAF issue only)
-  const ui = { menu: null, edit: null, draft: null, reorder: false };
+  const ui = { menu: null, edit: null, draft: null, view: 'main', renaming: null, confirmDel: null };
   const flight = { dep: null, ft: null, eta: null, set: new Set() };
   const inspect = {};                        // icao -> time being inspected
 
@@ -924,8 +992,34 @@ select{font:inherit;font-size:16px;color:inherit}
   $('fReset').addEventListener('click', () => { flight.dep = flight.ft = flight.eta = null; flight.set = new Set(); syncFlight(); drawAll(); });
 
   /* ---------- data ---------- */
-  async function refresh() {
-    if (!list.length) { toast('Add an aerodrome first.'); return; }
+  // Automatic refresh, fixed (not a setting): when the app is opened or comes back to the front and the data is more
+  // than 5 min old, and 40 min after the newest METAR on the list. If nothing new is out it retries every 5 min.
+  const AUTO_AFTER_METAR_MIN = 40, RETRY_MIN = 5, OPEN_STALE_MIN = 5, METAR_MAX_AGE_MIN = 90;
+  let fetching = false, lastAttempt = 0;
+  function busy() {   // do not re-draw under the user's fingers
+    const a = document.activeElement;
+    return !!(drag || ui.edit || ui.view !== 'main' || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'range'));
+  }
+  function nextAutoAt() {
+    if (data.demo || !list.length) return null;
+    const now = Date.now();
+    const mt = list.map(id => data.stations[id] && data.stations[id].metarTime).filter(t => t && now - t <= METAR_MAX_AGE_MIN * M);
+    const target = (mt.length ? Math.max.apply(null, mt) : (data.fetchedAt || now)) + AUTO_AFTER_METAR_MIN * M;
+    const floor = Math.max(lastAttempt, data.fetchedAt || 0) + RETRY_MIN * M;       // never more often than every 5 min
+    return Math.max(target, floor);
+  }
+  function autoCheck(onOpen) {
+    if (document.hidden || fetching || data.demo || !list.length || busy()) return;
+    if (Date.now() - lastAttempt < 60e3) return;
+    const at = nextAutoAt(), stale = !data.fetchedAt || Date.now() - data.fetchedAt > OPEN_STALE_MIN * M;
+    if ((onOpen && stale) || (at != null && Date.now() >= at)) refresh({ quiet: true });
+  }
+  async function refresh(opts) {
+    const quiet = !!(opts && opts.quiet);
+    if (!list.length) { if (!quiet) toast('Add an aerodrome first.'); return; }
+    if (fetching) return;
+    if (quiet && data.demo) return;                      // sample data never refreshes by itself
+    fetching = true; lastAttempt = Date.now();
     const btn = $('refresh'); btn.disabled = true; btn.textContent = 'Fetching…';
     try {
       const r = await fetch('api/wx?ids=' + encodeURIComponent(list.join(',')), { cache: 'no-store' });
@@ -937,16 +1031,18 @@ select{font:inherit;font-size:16px;color:inherit}
       data.fetchedAt = j.fetchedAt || Date.now();
       save(LS.data, data);
       const missing = list.filter(id => !j.stations[id] || !j.stations[id].taf);
-      if (missing.length) toast('No TAF found for ' + missing.join(', ') + '.');
+      if (!quiet && missing.length) toast('No TAF found for ' + missing.join(', ') + '.');
     } catch (e) {
-      const when = data.fetchedAt ? ' Showing data fetched ' + ago(data.fetchedAt) + '.' : '';
-      toast('Could not reach the weather service (' + e.message + ').' + when, 6000);
+      if (!quiet) {   // an automatic refresh that fails stays quiet and keeps the old data
+        const when = data.fetchedAt ? ' Showing data fetched ' + ago(data.fetchedAt) + '.' : '';
+        toast('Could not reach the weather service (' + e.message + ').' + when, 6000);
+      }
     } finally {
-      btn.disabled = false; btn.textContent = 'Refresh';
+      fetching = false; btn.disabled = false; btn.textContent = 'Refresh';
       render();
     }
   }
-  $('refresh').addEventListener('click', refresh);
+  $('refresh').addEventListener('click', () => refresh());
 
   async function loadStationList() {
     let cached = load(LS.stations, null);
@@ -1027,7 +1123,7 @@ select{font:inherit;font-size:16px;color:inherit}
     const dd = disc[id];
     if (dd && (!m.taf || m.taf.error || dd.key !== m.taf.raw)) delete disc[id];
     if (disc[id]) disc[id].idx.forEach(i => { const g = m.taf.groups[i]; if (g) m.skip.add(g); });
-    // groups whose wind (crosswind, tailwind, runway preference) is ignored, for the time that wind is in force
+    // groups whose wind (tailwind limit, runway preference) is ignored, for the time that wind is in force
     m.windOff = new Set();
     const wd = wdisc[id];
     if (wd && (!m.taf || m.taf.error || wd.key !== m.taf.raw)) delete wdisc[id];
@@ -1104,10 +1200,8 @@ select{font:inherit;font-size:16px;color:inherit}
     const cs = m.taf ? C.candidatesAt(m.taf, T, m.skip) : null;
     const w = cs && cs.length ? cs[0].s.wind : null;
     if (!w) return '';
-    const wc = C.windCheck(w, ap, m.cfg), tw = Math.round(wc.tw), xw = Math.round(wc.xw);
-    if (tw >= 1 && tw >= xw) return 'TW ' + tw + ' kt';
-    if (xw >= 1) return 'XW ' + xw + ' kt';
-    return 'HW ' + Math.max(0, Math.round(wc.hw)) + ' kt';
+    const wc = C.windCheck(w, ap, m.cfg), tw = Math.round(wc.tw);
+    return tw >= 1 ? 'TW ' + tw + ' kt' : 'HW ' + Math.max(0, Math.round(wc.hw)) + ' kt';
   }
   function betterHint(m, T, d) {
     if (flight.eta == null || !m.gridAuto || d.cat < 0) return null;
@@ -1232,13 +1326,11 @@ select{font:inherit;font-size:16px;color:inherit}
     }
     if (v.cat < 0) return 'No TAF at ETA ' + hhmm(at) + '.';
     let s = '<b>ETA ' + hhmm(at) + '</b> ·' + apn(r);
-    const cause = v.cause;
-    if (cause && v.causeIdx != null && v.causeIdx !== i) {
-      const off = (v.causeIdx - i) * C.STEP_MIN;
-      const when = off > 0 ? Math.abs(off) + ' min after ETA' : Math.abs(off) + ' min before ETA';
-      s += ' limited by ' + esc(src(cause)) + (cause.apL && cause.apL !== r.apL ? ' (' + esc(cause.apL) + ')' : '') + (cause.factor ? ': ' + esc(cause.factor) : '') + ', ' + when + '.';
-    } else if (cause && cause.factor) {
-      s += ' limited by ' + esc(src(cause)) + ': ' + esc(cause.factor) + '.';
+    const lim = C.limitingCell(sg, i, flight.ft, v.cat), cause = lim && lim.cell;
+    if (cause && cause.factor) {
+      const off = (lim.idx - i) * C.STEP_MIN;
+      const when = off === 0 ? '' : ', ' + Math.abs(off) + ' min ' + (off > 0 ? 'after' : 'before') + ' ETA';
+      s += ' limited by ' + esc(src(cause)) + (cause.apL && cause.apL !== r.apL ? ' (' + esc(cause.apL) + ')' : '') + ': ' + esc(cause.factor) + when + '.';
     } else s += ' clear of all limits.';
     const ab = !m.iso && !m.off ? C.altBelowAt(sg, i) : null;
     if (ab) {
@@ -1464,7 +1556,7 @@ select{font:inherit;font-size:16px;color:inherit}
   /* ---------- summary strip ---------- */
   function renderSummary() {
     const el = $('summary');
-    if (ui.reorder || !list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
+    if (!list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
     const T = dispTime();
     el.innerHTML = list.map(id => {
       const m = model[id];
@@ -1475,8 +1567,26 @@ select{font:inherit;font-size:16px;color:inherit}
       const ab = flight.eta != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, flight.eta)) : null;
       return '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap">' + esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
         '<span class="sright"><span class="sbd' + (bg ? '' : ' none') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + esc(vf ? vf.text : '') + '</span>' +
-        (ab ? '<span class="saltag">BELOW ALTN MINIMA</span>' : '') + '</span></button>';
+        (ab ? '<span class="saltag">BELOW ALTN MINIMA</span>' : '') + '</span>' + (m.gridAuto ? '<canvas class="sline" data-sid="' + id + '"></canvas>' : '') + '</button>';
     }).join('');
+    el.querySelectorAll('canvas.sline').forEach(cv => drawSline(cv, model[cv.dataset.sid]));
+  }
+  // The forecast strip of the card (3 px instead of 6 px), same time axis, plus the ETA tick
+  function drawSline(cv, m) {
+    const sg = m && selGrid(m); if (!sg || !axis) return;
+    const W = cv.clientWidth; if (!W) return;
+    const dpr = window.devicePixelRatio || 1, Hh = 9, yL = 3;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(Hh * dpr);
+    const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    for (let px = 0; px < W; px++) {
+      const t = axis.start + (px + 0.5) / W * (axis.end - axis.start);
+      const r = sg.raw[gridIndex(m, t)];
+      g.fillStyle = COLORS[r ? r.cat : -1]; g.fillRect(px, yL, 1, 3);
+    }
+    if (flight.eta != null) {
+      const x = Math.round((flight.eta - axis.start) / (axis.end - axis.start) * W);
+      g.fillStyle = '#ffffff'; g.fillRect(Math.max(0, x - 1), 0, 2, Hh);
+    }
   }
   $('summary').addEventListener('click', e => {
     const b = e.target.closest('[data-goto]');
@@ -1535,6 +1645,33 @@ select{font:inherit;font-size:16px;color:inherit}
     return h + (m.hasMin ? '<div class="hn">Results use the approach on the button, group by group, without ETA windows.</div>' : '');
   }
 
+  // METAR as plain text. Only the groups that decide a colour below green are coloured: the visibility, the
+  // layer that forms the ceiling, and the wind when it costs a colour. Green groups and everything else stay plain.
+  function metarHTML(m) {
+    const raw = m.metar.raw.replace(/^(METAR|SPECI)\s+\S+\s+/, '').replace(/=$/, '');
+    const toks = raw.split(/\s+/).filter(Boolean);
+    const cut = toks.findIndex(t => /^(TEMPO|BECMG|NOSIG|RMK)$/.test(t));
+    const end = cut < 0 ? toks.length : cut;                        // trends and remarks are not coloured
+    const chip = {};
+    if (m.hasMin) {
+      const st = m.metar.state, ctx = ctxFor(m, pinnedAp(m));
+      const isW = t => /^(\d{3}|VRB)\d{2,3}(G\d{2,3})?(KT|MPS)$/.test(t), isV = t => /^\d{4}(N|NE|E|SE|S|SW|W|NW|NDV)?$/.test(t) || t === 'CAVOK';
+      const isC = t => /^(BKN|OVC)\d{3}(CB|TCU)?$/.test(t) || /^VV(\d{3}|\/\/\/)$/.test(t);
+      const height = t => (/^VV/.test(t) ? (/\//.test(t) ? 0 : +t.slice(2) * 100) : +t.slice(3, 6) * 100);
+      let low = -1;
+      for (let i = 1; i < end; i++) if (isC(toks[i]) && (low < 0 || height(toks[i]) < height(toks[low]))) low = i;
+      const NOWIND = { wind: null };
+      for (let i = 1; i < end; i++) {
+        const t = toks[i]; let cat = null, what = '';
+        if (isV(t)) { cat = C.evalState(Object.assign({}, st, NOWIND, { cig: 99999, cigText: null }), ctx).cat; what = 'Visibility alone'; }
+        else if (i === low) { cat = C.evalState(Object.assign({}, st, NOWIND, { vis: 10000 }), ctx).cat; what = 'Ceiling alone'; }
+        else if (isW(t) && C.windCosts(st, Object.assign({}, ctx, { windOff: undefined }))) { cat = C.evalState(st, ctx).cat; what = 'With this wind'; }
+        if (cat != null && cat >= 0 && cat < 3) chip[i] = { cat, what };      // green stays plain
+      }
+    }
+    return '<div class="mline">' + toks.map((t, i) => chip[i] ? '<span class="mg" style="background:' + COLORS[chip[i].cat] + '" title="' + esc(chip[i].what + ': ' + catName(chip[i].cat, m)) + '">' + esc(t) + '</span>' : esc(t)).join(' ') + '</div>';
+  }
+
   function cardHTML(id) {
     const m = model[id]; const s = m.s || {};
     const ad = AERO_DATA.ap[id];
@@ -1552,12 +1689,12 @@ select{font:inherit;font-size:16px;color:inherit}
     h += editorHTML(id);
     if (m.metar) {
       const old = s.metarTime && Date.now() - s.metarTime > 30 * M;
-      h += '<div class="metar"><div class="lbl"><span>METAR</span><span class="' + (old ? 'stale' : '') + '">' + (s.metarTime ? 'obs ' + ago(s.metarTime) : esc(m.metar.time || '')) + '</span></div>';
-      h += pillHTML(m.metar.raw.replace(/^(METAR|SPECI)\s+\S+\s+/, '').replace(/=$/, ''), m, m.metar.state) + '</div>';
+      h += '<div class="metar"><div class="lbl new"><span class="c2">METAR</span><span class="sm' + (old ? ' stale' : '') + '">' + (s.metarTime ? 'obs ' + ago(s.metarTime) : esc(m.metar.time || '')) + '</span></div>';
+      h += metarHTML(m) + '</div>';
     }
     if (m.hasMin) h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
     if (m.taf && !m.taf.error) {
-      h += '<div class="lbl tafl"><span>TAF (codes in UTC)</span><span>issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + '</span><span>' + esc(s.source || '') + '</span></div><div class="pills">';
+      h += '<div class="lbl new tafl"><span class="c2">TAF</span><span class="sm">codes in UTC · issued ' + (m.taf.issue ? ddhhmm(m.taf.issue) : '?') + (s.source ? ' · ' + esc(s.source) : '') + '</span></div><div class="pills">';
       const noOff = Object.assign({}, ctxFor(m, pinnedAp(m)), { windOff: undefined });
       m.taf.groups.forEach((g, gi) => {
         if (!g.state) return;
@@ -1578,19 +1715,14 @@ select{font:inherit;font-size:16px;color:inherit}
   function render() {
     for (const id of list) computeStation(id);
     computeAxis(); computeGrids();
-    if (list.length < 2) ui.reorder = false;
-    $('sumHead').hidden = list.length < 2 || !Object.keys(data.stations).length;
-    $('reorderBtn').textContent = ui.reorder ? 'Done' : 'Reorder';
-    $('reorderBtn').classList.toggle('primary', ui.reorder);
+    renderChips();
     const cards = $('cards');
     if (!list.length) {
       cards.innerHTML = '<div class="empty first"><div class="ft">Add your first aerodrome</div><div class="fs">Type an ICAO code, for example ENZV, in the field below. Norwegian aerodromes are suggested as you type.</div></div>';
     } else if (!Object.keys(data.stations).length) {
       cards.innerHTML = '<div class="empty">No weather loaded yet.<br><br><button class="btn primary" id="emptyRefresh">Refresh</button> <button class="btn" id="demoBtn">Load sample data</button></div>';
-      $('emptyRefresh').onclick = refresh;
+      $('emptyRefresh').onclick = () => refresh();
       $('demoBtn').onclick = () => { data = demoData(); list = Object.keys(data.stations); save(LS.list, list); render(); };
-    } else if (ui.reorder) {
-      cards.innerHTML = reorderHTML();
     } else {
       cards.innerHTML = list.map(cardHTML).join('');
       cards.querySelectorAll('canvas').forEach(cv => {
@@ -1669,14 +1801,15 @@ select{font:inherit;font-size:16px;color:inherit}
   });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && ui.menu) { const prev = ui.menu; ui.menu = null; updateCardDynamic(prev); }
-    else if (e.key === 'Escape' && ui.reorder && !drag) { ui.reorder = false; render(); }
+    else if (e.key === 'Escape' && ui.view !== 'main' && !drag) showView('main');
   });
 
   function renderAge() {
     const el = $('age');
     if (data.demo) { el.textContent = 'Sample data'; el.className = 'age stale'; return; }
     if (!data.fetchedAt) { el.textContent = ''; return; }
-    el.textContent = 'Fetched ' + ago(data.fetchedAt);
+    const at = nextAutoAt();
+    el.innerHTML = esc(ago(data.fetchedAt)) + (at ? '<br>next ' + hhmm(at) : '');
     el.className = 'age' + (Date.now() - data.fetchedAt > 30 * M ? ' stale' : '');
   }
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -1715,13 +1848,12 @@ select{font:inherit;font-size:16px;color:inherit}
       '<span><i class="sw" style="background:' + COLORS[0] + '"></i>2 alternates</span>' +
       '<span><i class="sw" style="background:repeating-linear-gradient(135deg,#7d8799 0 2px,#232b3a 2px 4px)"></i>TAF ends within ETA window</span>' +
       '<span>' + WARN + 'User entered</span>';
-    $('mNote').textContent = 'DH and RVR come from the approach data (RVR from AMC6 CAT.OP.MPA.110 Table 23 by DH and approach lights, 800 m minimum for LOC) or your custom entry. The ceiling for no alternate is the highest MSA minus AD elevation (AIP), never below DH + 400 ft. Without MSA data the ' + cfg.greenCig + ' ft proxy applies and the aerodrome shows NO MSA. DH 250 ft or more also needs a ceiling at or above DH for one alternate.';
   }
 
   /* ---------- reorder aerodromes (drag handles) ---------- */
   const GRIP = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="9" cy="5" r="1.8"/><circle cx="15" cy="5" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="19" r="1.8"/><circle cx="15" cy="19" r="1.8"/></svg>';
   function reorderHTML() {
-    let h = '<div class="reorder" id="reorderList"><p class="note">Drag the handle on the right to change the order. With a handle selected, the up and down arrow keys move it. Tap Done when finished.</p>';
+    let h = '<div class="reorder" id="reorderList">';
     for (const id of list) {
       const nm = (data.stations[id] && data.stations[id].name) || (AERO_DATA.ap[id] && AERO_DATA.ap[id].n) || '';
       h += '<div class="rrow" data-id="' + id + '"><span class="ric">' + id + '</span><span class="rnm">' + esc(nm) + '</span>' +
@@ -1731,7 +1863,7 @@ select{font:inherit;font-size:16px;color:inherit}
   }
   let drag = null;
   function commitOrder() {
-    const ids = [...$('cards').querySelectorAll('.rrow')].map(r => r.dataset.id);
+    const ids = [...$('editView').querySelectorAll('.rrow')].map(r => r.dataset.id);
     if (ids.length === list.length && ids.join() !== list.join()) { list = ids; save(LS.list, list); }
   }
   function updateDrag() {
@@ -1778,9 +1910,9 @@ select{font:inherit;font-size:16px;color:inherit}
     d.row.style.transform = ''; d.row.classList.remove('dragging');
     commitOrder();
   }
-  $('cards').addEventListener('pointerdown', e => {
+  $('editView').addEventListener('pointerdown', e => {
     const grip = e.target.closest('.grip');
-    if (!grip || !ui.reorder || drag) return;
+    if (!grip || ui.view !== 'edit' || drag) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.preventDefault();
     const row = grip.closest('.rrow');
@@ -1792,7 +1924,7 @@ select{font:inherit;font-size:16px;color:inherit}
     document.addEventListener('pointercancel', endDrag);
     drag.raf = requestAnimationFrame(autoScrollLoop);
   });
-  $('cards').addEventListener('keydown', e => {
+  $('editView').addEventListener('keydown', e => {
     const grip = e.target.closest && e.target.closest('.grip');
     if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
     e.preventDefault();
@@ -1804,7 +1936,95 @@ select{font:inherit;font-size:16px;color:inherit}
     const pos = [...row.parentNode.querySelectorAll('.rrow')].indexOf(row) + 1;
     $('sr').textContent = row.dataset.id + ' moved to position ' + pos + ' of ' + list.length;
   });
-  $('reorderBtn').addEventListener('click', () => { ui.reorder = !ui.reorder; ui.menu = null; render(); });
+
+  /* ---------- pages: main, edit, settings ---------- */
+  function showView(v, push) {
+    ui.view = v; ui.menu = null; ui.renaming = null; ui.confirmDel = null;
+    $('mainView').hidden = v !== 'main'; $('editView').hidden = v !== 'edit'; $('settingsView').hidden = v !== 'settings';
+    if (v === 'edit') renderEdit();
+    if (v === 'settings') { fillCfg(); renderRules(); renderLegend(); renderMinNote(); }
+    if (push) { try { history.pushState({ v }, ''); } catch (e) { /* history not available */ } }
+    window.scrollTo(0, 0);
+    if (v === 'main') { render(); autoCheck(false); }
+  }
+  function goBack() { if (history.state && history.state.v) { try { history.back(); return; } catch (e) { /* fall through */ } } showView('main'); }
+  window.addEventListener('popstate', e => { const v = e.state && e.state.v ? e.state.v : 'main'; if (v !== ui.view) showView(v, false); });
+  $('setBtn').addEventListener('click', () => showView('settings', true));
+  $('setBack').addEventListener('click', goBack);
+  $('editBtn').addEventListener('click', () => showView('edit', true));
+  $('editDone').addEventListener('click', goBack);
+
+  /* ---------- named groups ---------- */
+  const cleanName = s => String(s || '').trim().replace(/\s+/g, ' ');
+  const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+  function renderChips() {
+    const head = $('sumHead'), box = $('chips');
+    head.hidden = !(list.length || groups.length);
+    box.innerHTML = !groups.length ? '<span class="sumlbl">Aerodromes</span>' : groups.map((g, i) => '<button class="chip' + (sameSet(g.ids, list) ? ' on' : '') + '" data-act="usegroup" data-i="' + i + '">' + esc(g.n) + '</button>').join('');
+  }
+  $('chips').addEventListener('click', e => {
+    const b = e.target.closest('[data-act=usegroup]'); if (!b) return;
+    const g = groups[+b.dataset.i]; if (!g) return;
+    list = g.ids.slice(); save(LS.list, list);
+    for (const k of Object.keys(pin)) delete pin[k];
+    render(); refresh();
+  });
+  function saveGroup() {
+    const nm = cleanName($('grpName').value);
+    if (!nm) { toast('Give the group a name.'); return; }
+    if (nm.length > 16) { toast('Use 16 characters or fewer.'); return; }
+    if (!list.length) { toast('Add an aerodrome first.'); return; }
+    const i = groups.findIndex(g => g.n.toLowerCase() === nm.toLowerCase());
+    if (i >= 0) { groups[i].ids = list.slice(); toast('Updated ' + groups[i].n + '.'); }
+    else { groups.push({ n: nm, ids: list.slice() }); toast('Saved ' + nm + '.'); }
+    save(LS.groups, groups); $('grpName').value = ''; renderEdit(); renderChips();
+  }
+  function renameGroup(i, name) {
+    const nm = cleanName(name);
+    if (!nm) { toast('Give the group a name.'); return false; }
+    if (nm.length > 16) { toast('Use 16 characters or fewer.'); return false; }
+    if (groups.some((g, k) => k !== i && g.n.toLowerCase() === nm.toLowerCase())) { toast('A group called ' + nm + ' already exists.'); return false; }
+    groups[i].n = nm; save(LS.groups, groups); return true;
+  }
+  function renderEdit() {
+    $('editList').innerHTML = reorderHTML();
+    $('grpHead').hidden = !groups.length;
+    $('grpList').innerHTML = groups.map((g, i) => {
+      if (ui.renaming === i) return '<div class="grow"><input class="gin" id="renIn" maxlength="16" value="' + esc(g.n) + '" autocomplete="off" spellcheck="false"><button class="btn primary small" data-act="rensave" data-i="' + i + '">Save</button><button class="btn small" data-act="rencancel">Cancel</button></div>';
+      const del = ui.confirmDel === i ? '<span class="ga">Delete? <b class="lk" data-act="delyes" data-i="' + i + '">Yes</b> · <b class="lk" data-act="delno">No</b></span>'
+        : '<span class="ga"><b class="lk" data-act="rename" data-i="' + i + '">Rename</b> · <b class="lk" data-act="delask" data-i="' + i + '">×</b></span>';
+      return '<div class="grow"><span class="gn">' + esc(g.n) + '</span><span class="gc">' + esc(g.ids.join(' ')) + '</span>' + del + '</div>';
+    }).join('');
+    const ri = $('renIn'); if (ri) ri.focus();
+  }
+  $('grpSave').addEventListener('click', saveGroup);
+  $('grpName').addEventListener('keydown', e => { if (e.key === 'Enter') saveGroup(); });
+  $('grpList').addEventListener('click', e => {
+    const t = e.target.closest('[data-act]'); if (!t) return;
+    const i = +t.dataset.i;
+    switch (t.dataset.act) {
+      case 'rename': ui.renaming = i; ui.confirmDel = null; renderEdit(); break;
+      case 'rensave': if (renameGroup(i, $('renIn').value)) { ui.renaming = null; renderEdit(); renderChips(); } break;
+      case 'rencancel': ui.renaming = null; renderEdit(); break;
+      case 'delask': ui.confirmDel = i; ui.renaming = null; renderEdit(); break;
+      case 'delno': ui.confirmDel = null; renderEdit(); break;
+      case 'delyes': groups.splice(i, 1); save(LS.groups, groups); ui.confirmDel = null; renderEdit(); renderChips(); break;
+    }
+  });
+  $('grpList').addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.id === 'renIn') { const b = $('grpList').querySelector('[data-act=rensave]'); if (b) b.click(); } });
+
+  /* ---------- settings page: rules in plain words, from the live settings ---------- */
+  function renderRules() {
+    const r = (k, t) => '<div class="rule"><i>' + k + '</i> ' + t + '</div>';
+    $('rules').innerHTML =
+      r('NO ALTN', 'ceiling at least MSA − elevation (never below DH + 400 ft), visibility ' + cfg.greenVis + ' m, ETA ±1 h. Without a listed MSA the ceiling is ' + cfg.greenCig + ' ft.') +
+      r('+75KG FUEL', 'ceiling at least DH + 400 ft, visibility 3000 m, ETA ±2 h (from departure if later), two independent approaches.') +
+      r('1 ALTN', 'visibility at least the approach RVR. A DH of 250 ft or more also needs ceiling at least DH.') +
+      r('2 ALTN', 'anything else.') +
+      r('Usable as alternate', 'RVR + 400 m and ceiling DH + 200 ft.') +
+      r('Tailwind', 'max ' + cfg.maxTw + ' kt, gusts count.') +
+      r('Approach', 'the runway with the most headwind, then the lowest minima.');
+  }
 
   /* ---------- add / settings ---------- */
   function addStation() {
@@ -1818,15 +2038,14 @@ select{font:inherit;font-size:16px;color:inherit}
   $('addBtn').addEventListener('click', addStation);
   $('addIn').addEventListener('keydown', e => { if (e.key === 'Enter') addStation(); });
 
-  $('setBtn').addEventListener('click', () => { $('settings').hidden = !$('settings').hidden; });
-  const CFG_FIELDS = { mGc: 'greenCig', mGv: 'greenVis', mTw: 'maxTw', mXw: 'maxXw' };
+  const CFG_FIELDS = { mGc: 'greenCig', mGv: 'greenVis', mTw: 'maxTw' };
   function fillCfg() { for (const id in CFG_FIELDS) $(id).value = cfg[CFG_FIELDS[id]]; }
   Object.keys(CFG_FIELDS).forEach(id => $(id).addEventListener('change', () => {
     const n = Object.assign({}, cfg);
     for (const k in CFG_FIELDS) { const v = +$(k).value; n[CFG_FIELDS[k]] = isFinite(v) && v >= 0 && $(k).value !== '' ? v : C.DEFAULT_CFG[CFG_FIELDS[k]]; }
-    cfg = n; save(LS.cfg, cfg); fillCfg(); renderLegend(); render();
+    cfg = n; save(LS.cfg, cfg); fillCfg(); renderRules(); renderLegend(); render();
   }));
-  $('mReset').addEventListener('click', () => { cfg = Object.assign({}, C.DEFAULT_CFG); save(LS.cfg, cfg); fillCfg(); renderLegend(); render(); });
+  $('mReset').addEventListener('click', () => { cfg = Object.assign({}, C.DEFAULT_CFG); save(LS.cfg, cfg); fillCfg(); renderRules(); renderLegend(); render(); });
 
   /* ---------- clock ---------- */
   setInterval(() => {
@@ -1836,12 +2055,13 @@ select{font:inherit;font-size:16px;color:inherit}
     computeAxis();
     if (axis.start !== prev) computeGrids();
     renderAge(); renderMinNote(); drawAll();
+    autoCheck(false);
   }, 30e3);
   window.addEventListener('resize', drawAll);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); } });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); autoCheck(true); } });
 
-  $('tz').textContent = tzLabel(); fillCfg(); renderLegend(); syncFlight(); render(); loadStationList();
-  window.__taf = { model, flight, onSlider, pin, ui, disc, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
+  $('tz').textContent = tzLabel(); fillCfg(); renderLegend(); syncFlight(); render(); loadStationList(); autoCheck(true);
+  window.__taf = { model, flight, onSlider, pin, ui, disc, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
 })();
 
 </script>
