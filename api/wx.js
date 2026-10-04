@@ -39,6 +39,22 @@ function lastMessage(txt, prefix) {
 const cleanName = n => (n ? String(n).replace(/,\s*[A-Z0-9]{1,3},\s*[A-Z]{2}$/, '').replace(/,\s*[A-Z]{2}$/, '') : null);
 const epoch = v => (v == null ? null : typeof v === 'number' ? (v < 1e12 ? v * 1000 : v) : Date.parse(v) || null);
 
+// End of a TAF's validity (epoch ms), read from its "ddhh/ddhh" period. Day and hour are resolved against `ref`.
+function tafEnd(raw, ref) {
+  const m = /\b(\d{2})(\d{2})\/(\d{2})(\d{2})\b/.exec(raw || '');
+  if (!m) return null;
+  const dd = +m[3], hh = +m[4], r = new Date(ref);
+  let best = null;
+  for (let k = -1; k <= 1; k++) {
+    const dim = new Date(Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + k + 1, 0)).getUTCDate();
+    if (dd > dim) continue;
+    const t = Date.UTC(r.getUTCFullYear(), r.getUTCMonth() + k, dd, hh);   // hour 24 rolls over to the next day
+    if (best === null || Math.abs(t - ref) < Math.abs(best - ref)) best = t;
+  }
+  return best;
+}
+const tafExpired = (raw, ref, now) => { const e = tafEnd(raw, ref || now); return e != null && e <= now; };
+
 async function fromNOAA(ids) {
   const q = encodeURIComponent(ids.join(','));
   const [tafs, metars] = await Promise.all([
@@ -109,14 +125,22 @@ export default async function handler(req, res) {
     let stations = {}, errors = [];
     try { stations = await fromNOAA(uniq); } catch (e) { errors.push(String(e.message || e)); }
 
-    // MET Norway fallback for Norwegian stations NOAA did not return a TAF for
+    // MET Norway fallback for Norwegian stations NOAA did not return a TAF for, or whose NOAA TAF has expired
+    const now = Date.now();
     const missing = uniq.filter(id => id.startsWith('EN') && !stations[id]?.taf);
-    const met = await Promise.all(missing.map(id => fromMET(id).catch(() => null)));
-    missing.forEach((id, i) => {
+    const expired = uniq.filter(id => id.startsWith('EN') && stations[id]?.taf && tafExpired(stations[id].taf, stations[id].tafIssue, now));
+    const ask = [...missing, ...expired];
+    const met = await Promise.all(ask.map(id => fromMET(id).catch(() => null)));
+    ask.forEach((id, i) => {
       const m = met[i];
       if (!m) return;
-      stations[id] = { ...(stations[id] || {}), ...Object.fromEntries(Object.entries(m).filter(([, v]) => v)) };
-      if (m.taf) stations[id].source = 'MET Norway';
+      if (missing.includes(id)) {
+        stations[id] = { ...(stations[id] || {}), ...Object.fromEntries(Object.entries(m).filter(([, v]) => v)) };
+        if (m.taf) stations[id].source = 'MET Norway';
+      } else if (m.taf && !tafExpired(m.taf, stations[id].tafIssue, now)) {
+        // replace only the TAF; keep NOAA's METAR and its observation time
+        stations[id].taf = m.taf; stations[id].tafIssue = null; stations[id].source = 'MET Norway';
+      }
     });
 
     const data = { fetchedAt: Date.now(), stations, errors };
