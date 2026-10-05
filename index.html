@@ -312,6 +312,38 @@ details.fold>*:not(summary){margin-bottom:10px}
 .card.collapsed .tl{margin-top:0}
 .cardbtns{display:flex;gap:8px}
 .pill.exp{background:transparent;border:1px dashed var(--line);color:var(--faint)}
+
+/* v1.17: Closest, Route, pop-up, tags */
+.modeline{font-size:10.5px;color:var(--muted);margin:-2px 2px 8px}
+.modeline[hidden]{display:none}
+.sic{display:flex;flex-direction:column;justify-content:center}
+.sic small{font-family:var(--mono);font-size:9.5px;color:var(--muted);letter-spacing:.3px;line-height:1;margin-top:2px}
+.sic small.dep{color:var(--blue);font-weight:600}
+.sic small.dest{color:var(--amber);font-weight:600}
+.chip:disabled{opacity:.6}
+.modal{position:fixed;inset:0;z-index:60;background:rgba(5,7,11,.72);display:flex;align-items:flex-start;justify-content:center;padding:max(14px,env(safe-area-inset-top)) 14px 14px}
+.modal[hidden]{display:none}
+.mbox{width:100%;max-width:420px;margin-top:6vh;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 18px 50px rgba(0,0,0,.6)}
+.mbox h3{font-family:var(--display);font-weight:400;font-size:26px;letter-spacing:.5px;margin:0 0 4px}
+.mmsg{font-size:11.5px;color:var(--muted);line-height:1.45;margin:0 0 10px}
+.mf{margin-bottom:8px}
+.mf label{display:block;font-size:10.5px;letter-spacing:.6px;color:var(--faint);text-transform:uppercase;margin-bottom:4px}
+.mf input{width:100%;background:var(--bg);border:1px solid var(--blue);border-radius:6px;padding:9px 10px}
+.msug{margin-top:4px}
+.msug .sug{display:flex}
+.merr{font-size:11.5px;color:var(--c-red);min-height:0;margin:2px 0 6px}
+.merr:empty{display:none}
+.mbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.mlink{background:none;border:none;color:var(--blue);font-size:12px;padding:10px 2px 2px}
+.mlink[hidden]{display:none}
+
+/* v1.18: Clear all chip, N to S button */
+.sumbtns{display:flex;gap:6px;flex:none}
+.sumbtns .btn[hidden]{display:none}
+.chip.clr{color:var(--faint);background:transparent;border-style:dashed}
+/* the chip row scrolls sideways; fade its right edge so a chip that runs off the end looks intentional */
+.chips{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent)}
+.chips::after{content:'';flex:none;width:22px}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -341,7 +373,8 @@ details.fold>*:not(summary){margin-bottom:10px}
     <div class="fhint"><span id="fHint">Set any two. The third is calculated.</span><button id="fReset">Clear</button></div>
   </section>
 
-  <div class="sumhead" id="sumHead" hidden><div class="chips" id="chips"></div><button class="btn small" id="editBtn">Edit</button></div>
+  <div class="sumhead" id="sumHead" hidden><div class="chips" id="chips"></div><div class="sumbtns"><button class="btn small" id="nsBtn" hidden aria-label="Arrange north to south">N→S</button><button class="btn small" id="editBtn">Edit</button></div></div>
+  <div class="modeline" id="modeLine" hidden></div>
   <div class="summary" id="summary"></div>
   <div id="cards"></div>
 
@@ -353,7 +386,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     </div>
   </div>
 
-  <div class="version">TAF Timeline v1.16</div>
+  <div class="version">TAF Timeline v1.18</div>
 </div>
 
 <div class="wrap" id="editView" hidden>
@@ -371,6 +404,8 @@ details.fold>*:not(summary){margin-bottom:10px}
 <div class="wrap" id="settingsView" hidden>
   <div class="page-h"><button class="back" id="setBack">‹ Back</button><h2>Settings</h2></div>
   <div class="set"><span>Max tailwind (kt)</span><input type="number" id="mTw" inputmode="numeric" step="1" min="0"></div>
+  <div class="set"><span>Closest range (nm)<small>Aerodromes within this range of your position, 50 to 200. At most 8, ILS aerodromes first.</small></span><input type="number" id="mCn" inputmode="numeric" step="10" min="50" max="200"></div>
+  <div class="set"><span>Alternate radius (nm)<small>Route alternates within this radius of the destination, 20 to 200.</small></span><input type="number" id="mAn" inputmode="numeric" step="10" min="20" max="200"></div>
   <details class="fold">
     <summary>Green defaults</summary>
     <div class="set"><span>Green ceiling (ft)<small>Used only for aerodromes without a listed MSA. With an MSA the ceiling is MSA minus elevation.</small></span><input type="number" id="mGc" inputmode="numeric" step="100" min="0"></div>
@@ -389,6 +424,16 @@ details.fold>*:not(summary){margin-bottom:10px}
 </div>
 
 <div class="toast" id="toast" role="status"></div>
+<div class="modal" id="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mTitle">
+  <div class="mbox">
+    <h3 id="mTitle"></h3>
+    <p class="mmsg" id="mMsg"></p>
+    <div id="mFields"></div>
+    <div class="merr" id="mErr" role="alert"></div>
+    <div class="mbtns"><button class="btn" id="mCancel">Cancel</button><button class="btn primary" id="mOk">OK</button></div>
+    <button class="mlink" id="mAgain" hidden>Try my location again</button>
+  </div>
+</div>
 <div class="toast undo" id="undoBar" role="status"><span id="undoTxt"></span><button id="undoBtn">Undo</button></div>
 <div class="sr" id="sr" role="status" aria-live="polite"></div>
 
@@ -408,7 +453,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   const TYPE_A_DH = 250;              // DH/MDH at or above this = Type A approach
   const INF = 99999;
 
-  const DEFAULT_CFG = { greenCig: 1500, greenVis: 5000, maxTw: 5 };
+  const DEFAULT_CFG = { greenCig: 1500, greenVis: 5000, maxTw: 5, closestNm: 100, altNm: 90 };
 
   /* ---------- time ---------- */
   // Resolve a TAF day/hour/minute to a Date close to the reference time.
@@ -814,6 +859,54 @@ details.fold>*:not(summary){margin-bottom:10px}
     return best ? { idx: best.j, cell: best.x } : null;
   }
 
+  // ---- distance and aerodrome selection (Closest and Route) ----
+  const R_NM = 3440.065;
+  function distNm(la1, lo1, la2, lo2) {
+    const r = Math.PI / 180, dp = (la2 - la1) * r, dl = (lo2 - lo1) * r;
+    const a = Math.sin(dp / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin(dl / 2) ** 2;
+    return 2 * R_NM * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+  // cands: [{ id, lat, lon, ils }]. Within the range, at most `max`: ILS aerodromes first (nearest first), then the
+  // nearest of the others to fill up. The result is arranged by distance. Returns [{ id, nm }].
+  function pickNearby(origin, cands, radiusNm, max, exclude) {
+    if (!origin || !isFinite(origin.lat) || !isFinite(origin.lon)) return [];
+    const within = [];
+    for (const c of cands) {
+      if (!c || (exclude && exclude.has(c.id)) || !isFinite(c.lat) || !isFinite(c.lon)) continue;
+      const nm = distNm(origin.lat, origin.lon, c.lat, c.lon);
+      if (nm <= radiusNm) within.push({ id: c.id, nm, ils: !!c.ils });
+    }
+    const byDist = (a, b) => (a.nm - b.nm) || a.id.localeCompare(b.id);
+    within.sort(byDist);
+    let chosen = within;
+    if (within.length > max) {
+      chosen = within.filter(x => x.ils).slice(0, max);
+      for (const x of within) { if (chosen.length >= max) break; if (!x.ils) chosen.push(x); }
+      chosen.sort(byDist);
+    }
+    return chosen.map(x => ({ id: x.id, nm: x.nm }));
+  }
+  // North to south: aerodromes north of refLat (ENTC) from east to west, then ENTC and everything south of it from north
+  // to south. Aerodromes without a position go last, in their current order.
+  function arrangeNS(ids, coords, refLat) {
+    const north = [], south = [], none = [];
+    for (const id of ids) {
+      const c = coords && coords[id];
+      if (!c || !isFinite(c.lat) || !isFinite(c.lon)) none.push(id);
+      else if (c.lat > refLat) north.push(id); else south.push(id);
+    }
+    north.sort((a, b) => (coords[b].lon - coords[a].lon) || a.localeCompare(b));      // east to west
+    south.sort((a, b) => (coords[b].lat - coords[a].lat) || a.localeCompare(b));      // north to south
+    return north.concat(south, none);
+  }
+  // Route: departure, destination, then alternates near the destination (never the two entered aerodromes).
+  function buildRoute(fromId, toId, coords, cands, altNm, maxTotal) {
+    const dest = coords && coords[toId];
+    if (!dest) return { list: [fromId, toId], alts: [], noPos: true };
+    const alts = pickNearby(dest, cands, altNm, Math.max(0, (maxTotal || 8) - 2), new Set([fromId, toId]));
+    return { list: [fromId, toId].concat(alts.map(a => a.id)), alts, noPos: false };
+  }
+
   // ---- find an aerodrome by ICAO code or by name ----
   // Lower case, Norwegian letters and accents folded, punctuation turned into spaces.
   function normName(s) {
@@ -900,7 +993,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   const api = {
     STEP_MIN, STEP_MS, CAT, CAT_NAME, CAT_VERDICT, FUEL, TYPE_A_DH, DEFAULT_CFG,
     parseTAF, parseMETAR, sysOf, eqKey, hasIndependent, hasNonGnss, windCheck, pickApproach,
-    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts, limitingCell, normName, matchStations
+    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts, limitingCell, normName, matchStations, distNm, pickNearby, buildRoute, arrangeNS
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TAFCore = api;
@@ -915,8 +1008,8 @@ details.fold>*:not(summary){margin-bottom:10px}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.16';
-  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed' };
+  const VERSION = '1.18';
+  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed', mode: 'taft.mode', route: 'taft.route', ref: 'taft.ref' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
   const $ = id => document.getElementById(id);
@@ -940,6 +1033,8 @@ details.fold>*:not(summary){margin-bottom:10px}
   let cfg = loadCfg();
   let custom = load(LS.custom, {});          // { ICAO: [{ id, t, r, dh, rvr }] } user entered, this device only
   let msa = load(LS.msa, {});                // { ICAO: ft above aerodrome } user entered ceiling for no alternate
+  let mode = load(LS.mode, null);            // how the list was made: { kind: 'closest'|'route', ... }; null once you edit it yourself
+  if (mode && (typeof mode !== 'object' || !['closest', 'route'].includes(mode.kind))) mode = null;
   let collapsed = load(LS.col, {});          // { ICAO: true } cards the user has collapsed, remembered on this device
   if (!collapsed || typeof collapsed !== 'object' || Array.isArray(collapsed)) collapsed = {};
   let groups = load(LS.groups, []);          // [{ n: 'Los HFT', ids: ['ENHF', ...] }] named by the user, this device only
@@ -1066,7 +1161,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let fetching = false, lastAttempt = 0;
   function busy() {   // do not re-draw under the user's fingers
     const a = document.activeElement;
-    return !!(drag || (sw && sw.active) || ui.edit || ui.view !== 'main' || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'range'));
+    return !!(drag || ui.modal || (sw && sw.active) || ui.edit || ui.view !== 'main' || (a && /^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName) && a.type !== 'range'));
   }
   function nextAutoAt() {
     if (data.demo || !list.length) return null;
@@ -1112,23 +1207,40 @@ details.fold>*:not(summary){margin-bottom:10px}
   }
   $('refresh').addEventListener('click', () => refresh());
 
-  // Index for "add by name": NOAA's station list (cached) plus the names built into minima.js. Built-in names win.
-  let stIndex = [];
+  // Index for "add by name" and the positions of the aerodromes: NOAA's station list (cached on the device) plus the names
+  // built into minima.js (built-in names win). Positions exist only where NOAA supplied them.
+  let stIndex = [], coords = {}, hasTaf = {};
+  const isNum = v => typeof v === 'number' && isFinite(v);
   function buildIndex() {
     const map = new Map(), cached = load(LS.stations, null);
-    if (cached && cached.stations) cached.stations.forEach(s => { if (s && s.id) map.set(s.id, { id: s.id, name: s.name || '', taf: s.taf !== false }); });
-    for (const id of Object.keys(AERO_DATA.ap || {})) map.set(id, { id, name: AERO_DATA.ap[id].n || '', taf: true });
+    coords = {}; hasTaf = {};
+    if (cached && cached.stations) cached.stations.forEach(s => {
+      if (!s || !s.id) return;
+      map.set(s.id, { id: s.id, name: s.name || '', taf: s.taf !== false });
+      hasTaf[s.id] = s.taf !== false;
+      if (isNum(s.lat) && isNum(s.lon)) coords[s.id] = { lat: s.lat, lon: s.lon };
+    });
+    for (const id of Object.keys(AERO_DATA.ap || {})) map.set(id, { id, name: AERO_DATA.ap[id].n || '', taf: hasTaf[id] !== false });
     stIndex = [...map.values()];
   }
-  async function loadStationList() {
+  async function loadStationList(force) {
     let cached = load(LS.stations, null);
-    if (!cached || Date.now() - cached.t > 7 * 24 * H) {
+    if (force || !cached || cached.v !== 2 || Date.now() - cached.t > 7 * 24 * H) {      // v2 = with positions
       try {
         const r = await fetch('api/wx?list=NO');
-        if (r.ok) { const j = await r.json(); if (j.stations && j.stations.length) { cached = { t: Date.now(), stations: j.stations }; save(LS.stations, cached); } }
+        if (r.ok) { const j = await r.json(); if (j.stations && j.stations.length) { cached = { v: 2, t: Date.now(), stations: j.stations }; save(LS.stations, cached); } }
       } catch (e) { /* offline: the built-in names and typed ICAO codes still work */ }
     }
-    buildIndex();
+    buildIndex(); renderChips();
+  }
+  // An ICAO code the list knows, else the best match for a name, else any four-letter code. null if none.
+  function resolveAerodrome(text, exclude) {
+    const t = String(text || '').trim(), up = t.toUpperCase().replace(/\s+/g, '');
+    if (!t) return null;
+    if (stIndex.some(e => e.id === up)) return up;
+    const hit = C.matchStations(t, stIndex, exclude || null, 1)[0];
+    if (hit) return hit.id;
+    return /^[A-Z0-9]{4}$/.test(up) ? up : null;
   }
 
   // Sample data relative to now, for trying the page without the /api function
@@ -1224,12 +1336,19 @@ details.fold>*:not(summary){margin-bottom:10px}
   function selGrid(m) { if (!m.gridAuto) return null; const p = selPin(m); return p ? m.gridBy[p] : m.gridAuto; }
   function ensureVerdicts(m) {
     const g = selGrid(m); if (!g) return null;
-    const key = (selPin(m) || 'auto') + '|' + flight.ft;
-    if (m.verdKey !== key) { m.verdicts = C.buildVerdicts(g, flight.ft); m.verdKey = key; }
+    const key = (selPin(m) || 'auto') + '|' + vFt(m);
+    if (m.verdKey !== key) { m.verdicts = C.buildVerdicts(g, vFt(m)); m.verdKey = key; }
     return m.verdicts;
   }
   const pinnedAp = m => { const p = selPin(m); return p ? m.ap.all.find(a => a.id === p) : null; };
-  const dispTime = () => (flight.eta != null ? flight.eta : Date.now());
+  // The departure aerodrome of a route is judged at ETD with the arrival rules. Departure is the earliest time that
+  // counts, so its +75kg fuel window looks forward only (flight time 0). Every other card is judged at ETA.
+  const isDep = id => !!(mode && mode.kind === 'route' && mode.from === id);
+  const refT = m => (isDep(m.id) ? flight.dep : flight.eta);
+  const refName = m => (isDep(m.id) ? 'ETD' : 'ETA');
+  const vFt = m => (isDep(m.id) ? 0 : flight.ft);
+  const vAt = (g, i, m) => C.verdictAt(g, i, vFt(m));
+  const dispTime = m => { const t = m ? refT(m) : flight.eta; return t != null ? t : Date.now(); };
 
   // The approach shown on the button, and its colour, at time T
   function dispState(m, T) {
@@ -1237,7 +1356,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     if (m.gridAuto) {
       const g = selGrid(m), i = gridIndex(m, T), r = g.raw[i];
       if (r && r.cat !== C.CAT.NODATA) {
-        const v = C.verdictAt(g, i, flight.ft);
+        const v = vAt(g, i, m);
         return { ap: m.ap.all.find(a => a.id === r.apId) || pinned || m.pool[0], cat: v.cat };
       }
     } else if (!m.taf && m.metar) {
@@ -1248,11 +1367,11 @@ details.fold>*:not(summary){margin-bottom:10px}
   }
   // Status of one approach at time T (for the dropdown rows). Colours only once an ETA is set.
   function rowStatus(m, ap, T) {
-    const etaSet = flight.eta != null;
+    const etaSet = refT(m) != null;
     const g = m.gridBy[ap.id];
     if (g) {
       const i = gridIndex(m, T), r = g.raw[i];
-      if (r && r.cat !== C.CAT.NODATA) return { cat: etaSet ? C.verdictAt(g, i, flight.ft).cat : -1, wind: r.windFail ? r.windShort : '' };
+      if (r && r.cat !== C.CAT.NODATA) return { cat: etaSet ? vAt(g, i, m).cat : -1, wind: r.windFail ? r.windShort : '' };
       return { cat: -1, wind: '' };
     }
     if (!m.taf && m.metar) { const r = C.evalState(m.metar.state, ctxFor(m, ap)); return { cat: etaSet ? r.cat : -1, wind: r.windFail ? r.windShort : '' }; }
@@ -1265,8 +1384,8 @@ details.fold>*:not(summary){margin-bottom:10px}
   function verdictFor(m) {
     if (!m.hasMin) return null;
     if (tafExpired(m)) return { cat: -1, text: verdictText(-1, m) };
-    if (flight.eta == null || !m.gridAuto) return { cat: null, text: m.gridAuto ? 'Set ETA' : 'No TAF' };
-    const v = ensureVerdicts(m)[gridIndex(m, flight.eta)];
+    if (refT(m) == null || !m.gridAuto) return { cat: null, text: m.gridAuto ? 'Set ' + refName(m) : 'No TAF' };
+    const v = ensureVerdicts(m)[gridIndex(m, refT(m))];
     const c = v ? v.cat : -1;
     return { cat: c, text: verdictText(c, m) };
   }
@@ -1280,7 +1399,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     return tw >= 1 ? 'TW ' + tw + ' kt' : 'HW ' + Math.max(0, Math.round(wc.hw)) + ' kt';
   }
   function betterHint(m, T, d) {
-    if (flight.eta == null || !m.gridAuto || d.cat < 0) return null;
+    if (refT(m) == null || !m.gridAuto || d.cat < 0) return null;
     let best = null;
     for (const ap of m.pool) {
       if (ap.id === d.ap.id) continue;
@@ -1357,20 +1476,19 @@ details.fold>*:not(summary){margin-bottom:10px}
       }
     }
 
-    // ETA window bracket (±1 h solid; faint line = +75kg fuel window, starting at departure if that is later)
-    if (flight.eta != null) {
-      const e = x(flight.eta);
-      // +75kg fuel window: ETA -2 h (or departure, if later) to ETA +2 h. Dashed bracket on top.
-      const left2 = flight.dep != null ? Math.max(flight.eta - 2 * H, flight.dep) : flight.eta - 2 * H;
+    const dep = isDep(id), refTime = dep ? flight.dep : flight.eta;
+    if (refTime != null) {
+      // +75kg fuel window (dashed): 2 h before (or from departure, if later) to 2 h after. At the departure aerodrome it starts at ETD.
+      const left2 = flight.dep != null ? Math.max(refTime - 2 * H, flight.dep) : refTime - 2 * H;
       g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 1; g.setLineDash([3, 3]);
-      g.beginPath(); g.moveTo(x(left2), 8.5); g.lineTo(x(left2), 3.5); g.lineTo(x(flight.eta + 2 * H), 3.5); g.lineTo(x(flight.eta + 2 * H), 8.5); g.stroke();
+      g.beginPath(); g.moveTo(x(left2), 8.5); g.lineTo(x(left2), 3.5); g.lineTo(x(refTime + 2 * H), 3.5); g.lineTo(x(refTime + 2 * H), 8.5); g.stroke();
       g.setLineDash([]);
-      // no-alternate and one-alternate window: ETA +/- 1 h. Solid bracket below it.
+      // no-alternate and one-alternate window: +/- 1 h, solid
       g.strokeStyle = 'rgba(255,255,255,.9)';
-      g.beginPath(); g.moveTo(x(flight.eta - H), 15.5); g.lineTo(x(flight.eta - H), 10.5); g.lineTo(x(flight.eta + H), 10.5); g.lineTo(x(flight.eta + H), 15.5); g.stroke();
-      g.fillStyle = '#fff'; g.fillRect(Math.round(e) - 1, 1, 2, yBar + hBar - 1);
+      g.beginPath(); g.moveTo(x(refTime - H), 15.5); g.lineTo(x(refTime - H), 10.5); g.lineTo(x(refTime + H), 10.5); g.lineTo(x(refTime + H), 15.5); g.stroke();
+      g.fillStyle = '#fff'; g.fillRect(Math.round(x(refTime)) - 1, 1, 2, yBar + hBar - 1);
     }
-    if (flight.dep != null) {
+    if (flight.dep != null && !dep) {
       const d = Math.round(x(flight.dep));
       g.fillStyle = '#4ea8de'; g.fillRect(d - 1, yBar - 2, 2, hBar + 4);
       g.beginPath(); g.moveTo(d - 4, yBar + hBar + 2); g.lineTo(d + 4, yBar + hBar + 2); g.lineTo(d, yBar + hBar - 3); g.fill();
@@ -1393,26 +1511,27 @@ details.fold>*:not(summary){margin-bottom:10px}
     const i = gridIndex(m, at);
     const r = sg.raw[i], v = vs[i];
     if (!r || !v) return '';
-    const note = v.partial && m.taf ? ' The ETA window runs past the end of the TAF (' + hhmm(m.taf.valid.to) + '), so this uses the forecast available.' : '';
+    const RN = refName(m);
+    const note = v.partial && m.taf ? ' The ' + RN + ' window runs past the end of the TAF (' + hhmm(m.taf.valid.to) + '), so this uses the forecast available.' : '';
     const src = x => (x && x.src ? (x.src.kind === 'BASE' ? 'Main forecast' : x.src.label) : 'TAF');
     const apn = x => (x && x.apL ? ' ' + esc(x.apL) : '');
     if (!asEta) {
       let s = '<b>' + hhmm(at) + '</b>' + (r.cat >= 0 ? ' ·' + apn(r) : '') + ' forecast ' + catName(r.cat, m) + (r.factor ? ', ' + esc(r.factor) : '') + (r.src ? ' (' + esc(src(r)) + ')' : '');
-      s += '. As ETA: <b>' + catName(v.cat, m) + '</b>';
+      s += '. As ' + RN + ': <b>' + catName(v.cat, m) + '</b>';
       return s + '.' + note;
     }
-    if (v.cat < 0) return 'No TAF at ETA ' + hhmm(at) + '.';
-    let s = '<b>ETA ' + hhmm(at) + '</b> ·' + apn(r);
-    const lim = C.limitingCell(sg, i, flight.ft, v.cat), cause = lim && lim.cell;
+    if (v.cat < 0) return 'No TAF at ' + RN + ' ' + hhmm(at) + '.';
+    let s = '<b>' + RN + ' ' + hhmm(at) + '</b> ·' + apn(r);
+    const lim = C.limitingCell(sg, i, vFt(m), v.cat), cause = lim && lim.cell;
     if (cause && cause.factor) {
       const off = (lim.idx - i) * C.STEP_MIN;
-      const when = off === 0 ? '' : ', ' + Math.abs(off) + ' min ' + (off > 0 ? 'after' : 'before') + ' ETA';
+      const when = off === 0 ? '' : ', ' + Math.abs(off) + ' min ' + (off > 0 ? 'after' : 'before') + ' ' + RN;
       s += ' limited by ' + esc(src(cause)) + (cause.apL && cause.apL !== r.apL ? ' (' + esc(cause.apL) + ')' : '') + ': ' + esc(cause.factor) + when + '.';
     } else s += ' clear of all limits.';
     const ab = !m.iso && !m.off ? C.altBelowAt(sg, i) : null;
     if (ab) {
       const off = (ab.idx - i) * C.STEP_MIN;
-      s += ' <span class="altw">Below alternate minima: ' + esc(ab.factor) + (off === 0 ? ', at ETA' : ', ' + Math.abs(off) + ' min ' + (off > 0 ? 'after' : 'before') + ' ETA') + '.</span>';
+      s += ' <span class="altw">Below alternate minima: ' + esc(ab.factor) + (off === 0 ? ', at ' + RN : ', ' + Math.abs(off) + ' min ' + (off > 0 ? 'after' : 'before') + ' ' + RN) + '.</span>';
     }
     return s + note;
   }
@@ -1421,12 +1540,12 @@ details.fold>*:not(summary){margin-bottom:10px}
   const typeTxt = ap => (ap.t === 'LPV' ? 'LPV' : ap.t);
   function buttonHTML(m, T) {
     const d = dispState(m, T), ap = d.ap, pinned = selPin(m);
-    const etaSet = flight.eta != null;
+    const etaSet = refT(m) != null;
     const neutral = !etaSet || d.cat < 0;
     const style = neutral ? '' : ' style="background:' + COLORS[d.cat] + '"';
     return '<button class="apbtn' + (neutral ? ' neutral' : '') + '"' + style + ' data-act="menu" aria-haspopup="true" aria-expanded="' + (ui.menu === m.id) + '">' +
       '<span class="abody"><span class="al">' + esc(ap.l) + (ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
-      '<span class="as">' + esc(typeTxt(ap)) + ' · DH ' + ap.d + ' · RVR ' + ap.v + (ap.lt ? ' ' + ap.lt : '') + ' · ' + (pinned ? 'PINNED' : 'AUTO') + (etaSet ? '' : ' · set ETA for the result') + '</span></span>' + CHEV + '</button>';
+      '<span class="as">' + esc(typeTxt(ap)) + ' · DH ' + ap.d + ' · RVR ' + ap.v + (ap.lt ? ' ' + ap.lt : '') + ' · ' + (pinned ? 'PINNED' : 'AUTO') + (etaSet ? '' : ' · set ' + refName(m) + ' for the result') + '</span></span>' + CHEV + '</button>';
   }
   function menuHTML(m, T) {
     const pinId = selPin(m);
@@ -1438,7 +1557,7 @@ details.fold>*:not(summary){margin-bottom:10px}
       h += '<div class="aprow' + (pinId === ap.id ? ' sel' : '') + '" role="button" tabindex="0" data-act="pin" data-ap="' + esc(ap.id) + '">' +
         '<span class="sw2" style="background:' + COLORS[st.cat] + '"></span>' +
         '<div class="body"><div class="t1">' + esc(ap.l) + (ap.custom ? WARN : '') + '</div><div class="t2">' + esc(sub) + '</div></div>' +
-        '<span class="st" style="color:' + (st.wind ? COLORS[0] : st.cat < 0 ? '#7d8799' : COLORS[st.cat]) + '">' + esc(st.wind || (flight.eta == null ? '' : shortCat(st.cat, m))) + '</span>' +
+        '<span class="st" style="color:' + (st.wind ? COLORS[0] : st.cat < 0 ? '#7d8799' : COLORS[st.cat]) + '">' + esc(st.wind || (refT(m) == null ? '' : shortCat(st.cat, m))) + '</span>' +
         (ap.custom ? '<span class="ed" role="button" tabindex="0" aria-label="Edit custom approach" data-act="editcustom" data-cid="' + esc(ap.cid) + '">Edit</span>' : '') + '</div>';
     }
     h += '<button class="aprow add" data-act="addcustom">+ Add custom approach</button>';
@@ -1539,7 +1658,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     const m = model[id];
     const card = document.querySelector('.card[data-id="' + id + '"]');
     if (!card || !m || !m.hasMin) return;
-    const T = dispTime();
+    const T = dispTime(m);
     const wrap = card.querySelector('.apbtnwrap'), menu = card.querySelector('.apmenu');
     const d = dispState(m, T);
     if (wrap) wrap.innerHTML = buttonHTML(m, T);
@@ -1551,7 +1670,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     if (vcat != null) {
       badge.className = 'vbadge'; badge.style.background = COLORS[vcat];
       badge.textContent = vf.text;
-      sub.innerHTML = 'at ETA ' + hhmm(flight.eta) + (d.ap && d.ap.custom ? ' ' + WARN : '');
+      sub.innerHTML = 'at ' + refName(m) + ' ' + hhmm(refT(m)) + (d.ap && d.ap.custom ? ' ' + WARN : '');
     } else {
       badge.className = 'vbadge none'; badge.style.background = '';
       badge.textContent = vf ? vf.text : '';
@@ -1559,7 +1678,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     }
     // TAF groups used for the colour at the ETA get a thin blue outline
     let winSet = null;
-    if (flight.eta != null && m.gridAuto && vcat != null && vcat >= 0) winSet = C.groupsInWindow(m.taf, selGrid(m), gridIndex(m, flight.eta), flight.ft, vcat, m.skip, m.windOff);
+    if (refT(m) != null && m.gridAuto && vcat != null && vcat >= 0) winSet = C.groupsInWindow(m.taf, selGrid(m), gridIndex(m, refT(m)), vFt(m), vcat, m.skip, m.windOff);
     m.winGroups = winSet;
     card.querySelectorAll('.pills .pill[data-gi]').forEach(el => {
       const g = m.taf && m.taf.groups[+el.dataset.gi];
@@ -1567,7 +1686,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     });
     if (tipEl) tipEl.innerHTML = tipHTML(m, tips[id]);
     // below alternate minima within ETA +/- 1 h
-    const ab = flight.eta != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, flight.eta)) : null;
+    const ab = refT(m) != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, refT(m))) : null;
     altag.hidden = !ab;
     const n = m.skip ? m.skip.size : 0;
     disctag.hidden = !n; disctag.textContent = n + ' PROB30 disregarded';
@@ -1584,7 +1703,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     notes.innerHTML = lines.map(l => '<div class="nl">' + l + '</div>').join('');
     if (tafExpired(m)) ro.innerHTML = expiredText(m);
     else if (inspect[id] != null) ro.innerHTML = describe(m, inspect[id], false);
-    else if (flight.eta != null) ro.innerHTML = describe(m, flight.eta, true);
+    else if (refT(m) != null) ro.innerHTML = describe(m, refT(m), true);
     else ro.innerHTML = m.gridAuto ? 'Tap the timeline to inspect a time.' : '';
     const how = card.querySelector('.howread');
     if (how) how.innerHTML = howHTML(m);
@@ -1594,7 +1713,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let tips = {};
   function tipFor(m) {
     if (flight.dep == null || flight.eta == null || flight.ft == null || !m.hasMin || !m.gridAuto) return null;
-    const vs = ensureVerdicts(m), i0 = gridIndex(m, flight.eta), v0 = vs[i0];
+    const vs = ensureVerdicts(m), i0 = gridIndex(m, refT(m)), v0 = vs[i0];
     if (!v0 || v0.cat < 0) return null;
     const floor = baseNow();
     let best = null;
@@ -1609,7 +1728,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     for (const id of list) {
       const o = model[id];
       if (!o || o === m || !o.gridAuto || o.iso || o.off) continue;
-      const g = selGrid(o), j0 = gridIndex(o, flight.eta);
+      const g = selGrid(o), j0 = gridIndex(o, refT(o));
       if (!C.altBelowAt(g, j0) && C.altBelowAt(g, j0 + best.d / 5)) best.cautions.push(id);
     }
     return best;
@@ -1618,7 +1737,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   function tipHTML(m, t) {
     if (!t) return '';
     const mins = Math.abs(t.d);
-    return '<div class="tiprow"><span class="tiptxt">Tip: depart ' + mins + ' min ' + (t.d < 0 ? 'earlier' : 'later') + ' (ETA ' + hhmm(flight.eta + t.d * M) + ') for ' + esc(verdictText(t.cat, m)) + '.' +
+    return '<div class="tiprow"><span class="tiptxt">Tip: depart ' + mins + ' min ' + (t.d < 0 ? 'earlier' : 'later') + ' (' + refName(m) + ' ' + hhmm(refT(m) + t.d * M) + ') for ' + esc(verdictText(t.cat, m)) + '.' +
       (t.partial ? ' <span class="tipend">TAF ends in window</span>' : '') + '</span>' +
       '<button class="btn small" data-act="applytip" data-d="' + t.d + '">Apply</button></div>' +
       (t.cautions.length ? '<div class="tipwarn">Caution: ' + esc(t.cautions.join(', ')) + ' would go below alternate minima.</div>' : '');
@@ -1636,16 +1755,22 @@ details.fold>*:not(summary){margin-bottom:10px}
     const el = $('summary');
     if (sw && sw.active) return;                       // never re-draw under a swipe
     if (!list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
-    const T = dispTime();
     const wrapRow = (id, row) => '<div class="swr' + (ui.swOpen === id ? ' open' : '') + '" data-sid="' + id + '"><button class="swdel" data-id="' + id + '" tabindex="-1" aria-label="Remove ' + id + '">Remove</button>' + row + '</div>';
+    const tag = id => {
+      if (!mode) return '';
+      if (mode.kind === 'route' && id === mode.from) return '<small class="dep">DEP</small>';
+      if (mode.kind === 'route' && id === mode.to) return '<small class="dest">DEST</small>';
+      const nm = mode.nm && mode.nm[id];
+      return nm != null ? '<small>' + Math.round(nm) + ' nm</small>' : '';
+    };
     el.innerHTML = list.map(id => {
       const m = model[id];
       if (!m) return '';
-      if (!m.hasMin) return wrapRow(id, '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap muted">No minima data</span></button>');
-      const d = dispState(m, T), vf = verdictFor(m);
+      if (!m.hasMin) return wrapRow(id, '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + tag(id) + '</span><span class="sap muted">No minima data</span></button>');
+      const d = dispState(m, dispTime(m)), vf = verdictFor(m);
       const bg = vf && vf.cat != null && vf.cat >= 0 ? COLORS[vf.cat] : null;
-      const ab = flight.eta != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, flight.eta)) : null;
-      return wrapRow(id, '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + '</span><span class="sap">' + esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
+      const ab = refT(m) != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, refT(m))) : null;
+      return wrapRow(id, '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + tag(id) + '</span><span class="sap">' + esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '') + '</span>' +
         '<span class="sright"><span class="sbd' + (bg ? '' : ' none') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + esc(vf ? vf.text : '') + '</span>' +
         (ab ? '<span class="saltag">BELOW ALTN MINIMA</span>' : '') + '</span>' + (m.gridAuto ? '<canvas class="sline" data-sid="' + id + '"></canvas>' : '') + '</button>');
     }).join('');
@@ -1663,8 +1788,8 @@ details.fold>*:not(summary){margin-bottom:10px}
       const r = sg.raw[gridIndex(m, t)];
       g.fillStyle = COLORS[r ? r.cat : -1]; g.fillRect(px, yL, 1, 3);
     }
-    if (flight.eta != null) {
-      const x = Math.round((flight.eta - axis.start) / (axis.end - axis.start) * W);
+    if (refT(m) != null) {
+      const x = Math.round((refT(m) - axis.start) / (axis.end - axis.start) * W);
       g.fillStyle = '#ffffff'; g.fillRect(Math.max(0, x - 1), 0, 2, Hh);
     }
   }
@@ -1901,6 +2026,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && ui.menu) { const prev = ui.menu; ui.menu = null; updateCardDynamic(prev); }
+    else if (e.key === 'Escape' && ui.modal) closeModal();
     else if (e.key === 'Escape' && ui.view !== 'main' && !drag) showView('main');
   });
 
@@ -1964,7 +2090,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let drag = null;
   function commitOrder() {
     const ids = [...$('editView').querySelectorAll('.rrow')].map(r => r.dataset.id);
-    if (ids.length === list.length && ids.join() !== list.join()) { list = ids; save(LS.list, list); }
+    if (ids.length === list.length && ids.join() !== list.join()) { list = ids; save(LS.list, list); markEdited(); }
   }
   function updateDrag() {
     const row = drag.row;
@@ -2046,17 +2172,20 @@ details.fold>*:not(summary){margin-bottom:10px}
   }
   function hideUndo() { clearTimeout(undoTimer); undoFn = null; $('undoBar').style.display = 'none'; }
   $('undoBtn').addEventListener('click', () => { const f = undoFn; hideUndo(); if (f) f(); });
+  function setMode(m) { mode = m; save(LS.mode, mode); }
+  // A change you make yourself (add, remove, reorder, N→S) keeps the mode but unlights the buttons. Objects are replaced, never edited in place.
+  function markEdited() { if (mode && !mode.edited) setMode(Object.assign({}, mode, { edited: true })); }
   function removeAerodrome(id) {
     const idx = list.indexOf(id); if (idx < 0) return;
-    const pinned = pin[id], opened = ui.swOpen === id;
-    list.splice(idx, 1); save(LS.list, list);
+    const pinned = pin[id], opened = ui.swOpen === id, prevMode = mode;
+    list.splice(idx, 1); save(LS.list, list); markEdited();
     if (ui.menu === id) ui.menu = null;
     if (ui.edit && ui.edit.icao === id) { ui.edit = null; ui.draft = null; }
     if (ui.swOpen === id) ui.swOpen = null;
     render();
     showUndo(id + ' removed', () => {
       if (list.includes(id)) return;
-      list.splice(Math.min(idx, list.length), 0, id); save(LS.list, list);
+      list.splice(Math.min(idx, list.length), 0, id); save(LS.list, list); setMode(prevMode);
       if (pinned) pin[id] = pinned;
       render();
     });
@@ -2126,16 +2255,145 @@ details.fold>*:not(summary){margin-bottom:10px}
   const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
   function renderChips() {
     const head = $('sumHead'), box = $('chips');
-    head.hidden = !(list.length || groups.length);
-    box.innerHTML = !groups.length ? '<span class="sumlbl">Aerodromes</span>' : groups.map((g, i) => '<button class="chip' + (sameSet(g.ids, list) ? ' on' : '') + '" data-act="usegroup" data-i="' + i + '">' + esc(g.n) + '</button>').join('');
+    head.hidden = false;
+    $('editBtn').hidden = !list.length;
+    box.innerHTML =
+      '<button class="chip' + (mode && mode.kind === 'closest' && !mode.edited ? ' on' : '') + '" data-act="closest"' + (ui.locating ? ' disabled' : '') + '>' + (ui.locating ? 'Locating…' : 'Closest') + '</button>' +
+      '<button class="chip' + (mode && mode.kind === 'route' && !mode.edited ? ' on' : '') + '" data-act="route">Route</button>' +
+      groups.map((g, i) => '<button class="chip' + (!mode && sameSet(g.ids, list) ? ' on' : '') + '" data-act="usegroup" data-i="' + i + '">' + esc(g.n) + '</button>').join('') +
+      (list.length ? '<button class="chip clr" data-act="clearall">Clear all</button>' : '');
+    $('nsBtn').hidden = list.length < 2;
+    const ml = $('modeLine');
+    if (mode && mode.kind === 'closest') ml.textContent = 'Within ' + mode.radius + ' nm of ' + (mode.ref || 'your position') + ' · nearest first';
+    else if (mode && mode.kind === 'route') ml.textContent = mode.from + ' → ' + mode.to + (mode.noPos ? ' · no position for ' + mode.to + ', add alternates yourself' : ' · alternates within ' + mode.radius + ' nm');
+    else ml.textContent = '';
+    if (ml.textContent && mode.edited) ml.textContent += ' · edited';
+    ml.hidden = !ml.textContent;
+  }
+  // Replace the whole list (a group, Closest or Route), with Undo for 5 seconds
+  function replaceList(nl, nm, label) {
+    const prev = { list: list.slice(), mode, pin: Object.assign({}, pin) };
+    list = nl.slice(); save(LS.list, list); setMode(nm);
+    for (const k of Object.keys(pin)) delete pin[k];
+    render();
+    if (!data.demo) refresh();
+    showUndo(label, () => { list = prev.list; save(LS.list, list); setMode(prev.mode); for (const k of Object.keys(pin)) delete pin[k]; Object.assign(pin, prev.pin); render(); });
+  }
+  // Clear all: empties the list and the mode; the saved groups are untouched
+  function clearAll() {
+    if (!list.length) return;
+    const prev = { list: list.slice(), mode, pin: Object.assign({}, pin) };
+    list = []; save(LS.list, list); setMode(null);
+    for (const k of Object.keys(pin)) delete pin[k];
+    ui.menu = null; ui.edit = null; ui.draft = null; ui.swOpen = null;
+    render();
+    showUndo('List cleared', () => { list = prev.list; save(LS.list, list); setMode(prev.mode); Object.assign(pin, prev.pin); render(); });
+  }
+  // N→S: a one-time rearrangement of the current list. Route keeps DEP and DEST on top and arranges the rest.
+  const NS_REF_LAT = 69.683;                                  // Tromsø, used when ENTC has no position in the list
+  function arrangeNorthSouth() {
+    if (list.length < 2) return;
+    const prev = { list: list.slice(), mode };
+    const top = mode && mode.kind === 'route' ? [mode.from, mode.to].filter(id => list.includes(id)) : [];
+    const rest = C.arrangeNS(list.filter(id => !top.includes(id)), coords, coords.ENTC ? coords.ENTC.lat : NS_REF_LAT);
+    const nl = top.concat(rest);
+    if (nl.join() === list.join()) { toast('Already arranged north to south.'); return; }
+    list = nl; save(LS.list, list); markEdited();
+    render();
+    showUndo('Arranged north to south', () => { list = prev.list; save(LS.list, list); setMode(prev.mode); render(); });
+  }
+  $('nsBtn').addEventListener('click', arrangeNorthSouth);
+  const candidates = () => Object.keys(AERO_DATA.ap || {}).filter(id => coords[id] && hasTaf[id] !== false)
+    .map(id => ({ id, lat: coords[id].lat, lon: coords[id].lon, ils: AERO_DATA.ap[id].a.some(a => a.t === 'ILS') }));
+  function getPosition() {
+    return new Promise((res, rej) => {
+      if (!navigator.geolocation) { rej(new Error('unavailable')); return; }
+      navigator.geolocation.getCurrentPosition(pp => res({ lat: pp.coords.latitude, lon: pp.coords.longitude }), rej, { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 });
+    });
+  }
+  function noPositions() { toast('Aerodrome positions are not loaded yet. Check your connection and try again.', 5000); loadStationList(true); }
+  async function doClosest() {
+    if (ui.locating) return;
+    if (!Object.keys(coords).length) { noPositions(); return; }
+    ui.locating = true; renderChips();
+    let pos = null;
+    try { pos = await getPosition(); } catch (e) { pos = null; }
+    ui.locating = false; renderChips();
+    if (pos) applyClosest(pos, 'your position', null); else openModal('ref');
+  }
+  function applyClosest(origin, label, refId) {
+    const hits = C.pickNearby(origin, candidates(), cfg.closestNm, 8);
+    if (!hits.length) { toast('No aerodromes within ' + cfg.closestNm + ' nm of ' + label + '. Raise the range in Settings.', 5000); return; }
+    const nm = {}; hits.forEach(h => { nm[h.id] = h.nm; });
+    replaceList(hits.map(h => h.id), { kind: 'closest', nm, ref: refId, radius: cfg.closestNm }, hits.length + (hits.length === 1 ? ' aerodrome' : ' closest aerodromes'));
+  }
+  function applyRoute(from, to) {
+    const r = C.buildRoute(from, to, coords, candidates(), cfg.altNm, 8);
+    const nm = {}; r.alts.forEach(a => { nm[a.id] = a.nm; });
+    save(LS.route, { from, to });
+    replaceList(r.list, { kind: 'route', from, to, nm, radius: cfg.altNm, noPos: r.noPos }, from + ' → ' + to + (r.noPos ? '' : ' with ' + r.alts.length + (r.alts.length === 1 ? ' alternate' : ' alternates')));
   }
   $('chips').addEventListener('click', e => {
-    const b = e.target.closest('[data-act=usegroup]'); if (!b) return;
+    const b = e.target.closest('[data-act]'); if (!b || b.disabled) return;
+    if (b.dataset.act === 'closest') { doClosest(); return; }
+    if (b.dataset.act === 'route') { openModal('route'); return; }
+    if (b.dataset.act === 'clearall') { clearAll(); return; }
+    if (b.dataset.act !== 'usegroup') return;
     const g = groups[+b.dataset.i]; if (!g) return;
-    list = g.ids.slice(); save(LS.list, list);
-    for (const k of Object.keys(pin)) delete pin[k];
-    render(); refresh();
+    replaceList(g.ids, null, g.n + ' loaded');
   });
+
+  /* ---------- pop-up: Route (From, To) and the reference for Closest when location is off ---------- */
+  let mFields = [], mKind = null, mFrom = null;
+  function openModal(kind) {
+    mKind = kind; mFrom = document.activeElement; ui.modal = true;
+    const rt = load(LS.route, {}), ref = load(LS.ref, '');
+    const spec = kind === 'route'
+      ? { title: 'Route', msg: 'Enter the departure and the destination. Alternates near the destination are added below.', ok: 'Show route', fields: [['From', rt.from || ''], ['To', rt.to || '']] }
+      : { title: 'Closest aerodromes', msg: 'Location is off. Enter an aerodrome to measure from.', ok: 'Show closest', fields: [['Measure from', ref || '']] };
+    $('mTitle').textContent = spec.title; $('mMsg').textContent = spec.msg; $('mOk').textContent = spec.ok;
+    $('mErr').textContent = '';
+    $('mAgain').hidden = kind !== 'ref';
+    $('mFields').innerHTML = spec.fields.map((f, i) => '<div class="mf"><label for="mf' + i + '">' + f[0] + '</label><input id="mf' + i + '" data-i="' + i + '" value="' + esc(f[1]) + '" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ICAO or airport name"><div class="msug" id="ms' + i + '"></div></div>').join('');
+    mFields = spec.fields.map((f, i) => $('mf' + i));
+    $('modal').hidden = false;
+    const first = mFields.find(f => !f.value) || mFields[0]; if (first) first.focus();
+  }
+  function closeModal() { $('modal').hidden = true; ui.modal = false; if (mFrom && mFrom.focus) { try { mFrom.focus({ preventScroll: true }); } catch (_) { /* gone */ } } }
+  function modalSugg(i) {
+    const inp = mFields[i], box = $('ms' + i); if (!inp) return;
+    delete inp.dataset.id;
+    const hits = C.matchStations(inp.value, stIndex, null, 5);
+    box.innerHTML = hits.map(h => '<button type="button" class="sug" data-i="' + i + '" data-id="' + h.id + '"><b>' + h.id + '</b><span>' + esc(h.name) + '</span></button>').join('');
+  }
+  $('mFields').addEventListener('input', e => { if (e.target.matches('input')) { $('mErr').textContent = ''; modalSugg(+e.target.dataset.i); } });
+  $('mFields').addEventListener('click', e => {
+    const b = e.target.closest('.sug'); if (!b) return;
+    const i = +b.dataset.i, inp = mFields[i];
+    inp.value = b.dataset.id; inp.dataset.id = b.dataset.id; $('ms' + i).innerHTML = '';
+    const nx = mFields[i + 1]; if (nx) nx.focus();
+  });
+  $('mFields').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('mOk').click(); } });
+  function fieldId(i) { const inp = mFields[i]; return inp.dataset.id || resolveAerodrome(inp.value, null); }
+  $('mOk').addEventListener('click', () => {
+    const err = t => { $('mErr').textContent = t; };
+    if (mKind === 'route') {
+      const a = fieldId(0), b = fieldId(1);
+      if (!a || !b) { err(!a ? 'Enter the departure aerodrome.' : 'Enter the destination aerodrome.'); return; }
+      if (a === b) { err('Departure and destination must be different.'); return; }
+      if (!Object.keys(coords).length) { closeModal(); noPositions(); return; }
+      closeModal(); applyRoute(a, b);
+    } else {
+      const a = fieldId(0);
+      if (!a) { err('Enter an aerodrome to measure from.'); return; }
+      if (!coords[a]) { err('No position for ' + a + '. Try another aerodrome.'); return; }
+      save(LS.ref, a); closeModal(); applyClosest(coords[a], a, a);
+    }
+  });
+  $('mCancel').addEventListener('click', closeModal);
+  $('mAgain').addEventListener('click', () => { closeModal(); doClosest(); });
+  $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
+
   function saveGroup() {
     const nm = cleanName($('grpName').value);
     if (!nm) { toast('Give the group a name.'); return; }
@@ -2197,19 +2455,11 @@ details.fold>*:not(summary){margin-bottom:10px}
 
   /* ---------- add / settings ---------- */
   function addStation(pickId) {
-    const typed = $('addIn').value.trim(), up = typed.toUpperCase().replace(/\s+/g, '');
-    let v = pickId || null;
-    if (!v) {
-      if (stIndex.some(e => e.id === up)) v = up;                                     // a known ICAO code, exactly
-      else {
-        const hit = C.matchStations(typed, stIndex, new Set(list), 1)[0];             // else the best match for a name or code start
-        if (hit) v = hit.id;
-        else if (/^[A-Z0-9]{4}$/.test(up)) v = up;                                    // else an ICAO code the list does not know
-        else { toast(typed ? 'No aerodrome matches "' + typed + '".' : 'Type an ICAO code or an airport name.'); return; }
-      }
-    }
+    const typed = $('addIn').value.trim();
+    const v = pickId || resolveAerodrome(typed, new Set(list));
+    if (!v) { toast(typed ? 'No aerodrome matches "' + typed + '".' : 'Type an ICAO code or an airport name.'); return; }
     if (list.includes(v)) { toast(v + ' is already in the list.'); return; }
-    list.push(v); save(LS.list, list); $('addIn').value = ''; hideSugg();
+    list.push(v); save(LS.list, list); markEdited(); $('addIn').value = ''; hideSugg();
     render();
     if (!data.demo) refresh();
   }
@@ -2227,11 +2477,17 @@ details.fold>*:not(summary){margin-bottom:10px}
   $('sugg').addEventListener('click', e => { const b = e.target.closest('.sug'); if (b) addStation(b.dataset.id); });
   document.addEventListener('click', e => { if (!e.target.closest('#addWrap')) hideSugg(); });
 
-  const CFG_FIELDS = { mGc: 'greenCig', mGv: 'greenVis', mTw: 'maxTw' };
+  const CFG_FIELDS = { mGc: 'greenCig', mGv: 'greenVis', mTw: 'maxTw', mCn: 'closestNm', mAn: 'altNm' };
+  const CFG_RANGE = { closestNm: [50, 200], altNm: [20, 200] };
   function fillCfg() { for (const id in CFG_FIELDS) $(id).value = cfg[CFG_FIELDS[id]]; }
   Object.keys(CFG_FIELDS).forEach(id => $(id).addEventListener('change', () => {
     const n = Object.assign({}, cfg);
-    for (const k in CFG_FIELDS) { const v = +$(k).value; n[CFG_FIELDS[k]] = isFinite(v) && v >= 0 && $(k).value !== '' ? v : C.DEFAULT_CFG[CFG_FIELDS[k]]; }
+    for (const k in CFG_FIELDS) {
+      const key = CFG_FIELDS[k], rg = CFG_RANGE[key]; let v = +$(k).value;
+      if (!isFinite(v) || v < 0 || $(k).value === '') v = C.DEFAULT_CFG[key];
+      if (rg) v = Math.max(rg[0], Math.min(rg[1], Math.round(v)));
+      n[key] = v;
+    }
     cfg = n; save(LS.cfg, cfg); fillCfg(); renderRules(); renderLegend(); render();
   }));
   $('mReset').addEventListener('click', () => { cfg = Object.assign({}, C.DEFAULT_CFG); save(LS.cfg, cfg); fillCfg(); renderRules(); renderLegend(); render(); });
@@ -2251,7 +2507,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); autoCheck(true); } });
 
   $('tz').textContent = tzLabel(); fillCfg(); renderLegend(); syncFlight(); buildIndex(); render(); loadStationList(); autoCheck(true);
-  window.__taf = { model, flight, onSlider, pin, ui, disc, get collapsed() { return collapsed; }, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
+  window.__taf = { model, flight, onSlider, pin, ui, disc, arrangeNorthSouth, get mode() { return mode; }, get coords() { return coords; }, openModal, applyRoute, applyClosest, get collapsed() { return collapsed; }, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
 })();
 
 </script>
