@@ -386,7 +386,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     </div>
   </div>
 
-  <div class="version">TAF Timeline v1.18</div>
+  <div class="version">TAF Timeline v1.19</div>
 </div>
 
 <div class="wrap" id="editView" hidden>
@@ -1008,7 +1008,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.18';
+  const VERSION = '1.19';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed', mode: 'taft.mode', route: 'taft.route', ref: 'taft.ref' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -1223,15 +1223,41 @@ details.fold>*:not(summary){margin-bottom:10px}
     for (const id of Object.keys(AERO_DATA.ap || {})) map.set(id, { id, name: AERO_DATA.ap[id].n || '', taf: hasTaf[id] !== false });
     stIndex = [...map.values()];
   }
+  // What happened the last time the station list was loaded, so a failure can say why
+  let listInfo = { state: 'unknown' };
   async function loadStationList(force) {
     let cached = load(LS.stations, null);
-    if (force || !cached || cached.v !== 2 || Date.now() - cached.t > 7 * 24 * H) {      // v2 = with positions
+    // a list without positions is only trusted for an hour, a good one for a week
+    const stale = !cached || cached.v !== 2 || Date.now() - cached.t > (cached.pos > 0 ? 7 * 24 * H : H);
+    if (force || stale) {
       try {
-        const r = await fetch('api/wx?list=NO');
-        if (r.ok) { const j = await r.json(); if (j.stations && j.stations.length) { cached = { v: 2, t: Date.now(), stations: j.stations }; save(LS.stations, cached); } }
-      } catch (e) { /* offline: the built-in names and typed ICAO codes still work */ }
+        const r = await fetch('api/wx?list=NO&v=2', { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const j = await r.json();
+        if (!j.stations || !j.stations.length) listInfo = { state: 'empty' };
+        else {
+          const pos = j.stations.filter(s => isNum(s.lat) && isNum(s.lon)).length;
+          cached = { v: 2, t: Date.now(), pos, stations: j.stations };
+          save(LS.stations, cached);
+          listInfo = { state: pos > 0 ? 'ok' : ('lat' in j.stations[0] ? 'nopos' : 'old') };
+        }
+      } catch (e) { listInfo = { state: 'failed' }; }
     }
     buildIndex(); renderChips();
+  }
+  const positionsProblem = () => ({
+    failed: 'Could not load aerodrome positions. Check your connection and try again.',
+    empty: 'The weather service sent no stations. Try again in a minute.',
+    old: 'The weather service is out of date and sends no positions. Upload the latest api/wx.js.',
+    nopos: 'NOAA sent no aerodrome positions, so Closest and Route cannot work.'
+  }[listInfo.state] || 'Aerodrome positions are not loaded yet. Try again in a moment.');
+  // True when positions are available; otherwise tries once more and says why it failed
+  async function ensurePositions() {
+    if (Object.keys(coords).length) return true;
+    await loadStationList(true);
+    if (Object.keys(coords).length) return true;
+    toast(positionsProblem(), 6500);
+    return false;
   }
   // An ICAO code the list knows, else the best match for a name, else any four-letter code. null if none.
   function resolveAerodrome(text, exclude) {
@@ -2311,14 +2337,14 @@ details.fold>*:not(summary){margin-bottom:10px}
       navigator.geolocation.getCurrentPosition(pp => res({ lat: pp.coords.latitude, lon: pp.coords.longitude }), rej, { enableHighAccuracy: false, timeout: 8000, maximumAge: 120000 });
     });
   }
-  function noPositions() { toast('Aerodrome positions are not loaded yet. Check your connection and try again.', 5000); loadStationList(true); }
   async function doClosest() {
     if (ui.locating) return;
-    if (!Object.keys(coords).length) { noPositions(); return; }
     ui.locating = true; renderChips();
+    const have = await ensurePositions();
     let pos = null;
-    try { pos = await getPosition(); } catch (e) { pos = null; }
+    if (have) { try { pos = await getPosition(); } catch (e) { pos = null; } }
     ui.locating = false; renderChips();
+    if (!have) return;
     if (pos) applyClosest(pos, 'your position', null); else openModal('ref');
   }
   function applyClosest(origin, label, refId) {
@@ -2375,13 +2401,13 @@ details.fold>*:not(summary){margin-bottom:10px}
   });
   $('mFields').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('mOk').click(); } });
   function fieldId(i) { const inp = mFields[i]; return inp.dataset.id || resolveAerodrome(inp.value, null); }
-  $('mOk').addEventListener('click', () => {
+  $('mOk').addEventListener('click', async () => {
     const err = t => { $('mErr').textContent = t; };
     if (mKind === 'route') {
       const a = fieldId(0), b = fieldId(1);
       if (!a || !b) { err(!a ? 'Enter the departure aerodrome.' : 'Enter the destination aerodrome.'); return; }
       if (a === b) { err('Departure and destination must be different.'); return; }
-      if (!Object.keys(coords).length) { closeModal(); noPositions(); return; }
+      if (!(await ensurePositions())) { closeModal(); return; }
       closeModal(); applyRoute(a, b);
     } else {
       const a = fieldId(0);
