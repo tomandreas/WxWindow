@@ -1,6 +1,6 @@
 // /api/wx — thin proxy for raw TAF/METAR text.
 //   GET /api/wx?ids=ENZV,ENBR   → { fetchedAt, stations: { ENZV: {...} } }
-//   GET /api/wx?list=NO         → { stations: [{ id, name, taf }] }  (Norwegian METAR/TAF stations)
+//   GET /api/wx?list=NO         → { stations: [{ id, name, taf, lat, lon }], withPositions }  (Norwegian METAR/TAF stations; lat/lon are null if NOAA gives none)
 // Decoding happens in the page, so every source goes through the same parser.
 
 const AWC = 'https://aviationweather.gov/api/data';
@@ -92,25 +92,31 @@ async function fromMET(id) {
 }
 
 async function stationList() {
-  const hit = cached('list:NO', 24 * 3600e3);
+  const hit = cached('list:NO2', 24 * 3600e3);
   if (hit) return hit;
-  const rows = await getJSON(`${AWC}/stationinfo?bbox=55,-5,72,35&format=json`);
-  const list = (rows || [])
+  // lat 82 so that Svalbard (78 N) is included
+  const rows = await getJSON(`${AWC}/stationinfo?bbox=55,-5,82,35&format=json`);
+  const list = (Array.isArray(rows) ? rows : [])
     .filter(s => /^EN[A-Z]{2}$/.test(s.icaoId || ''))
     .map(s => {
       const types = [].concat(s.siteType || []).join(',');
-      return { id: s.icaoId, name: s.site || s.name || '', taf: /TAF/.test(types) };
+      const num = v => (v === null || v === undefined || v === '' || !isFinite(+v) ? null : +v);
+      // if NOAA gives no site type, assume the station has a TAF rather than hiding it
+      return { id: s.icaoId, name: s.site || s.name || '', taf: types ? /TAF/.test(types) : true, lat: num(s.lat ?? s.latitude), lon: num(s.lon ?? s.longitude) };
     })
     .sort((a, b) => a.id.localeCompare(b.id));
-  return store('list:NO', { stations: list });
+  if (!list.length) return null;                                   // never keep an empty answer
+  return store('list:NO2', { stations: list, withPositions: list.filter(s => s.lat !== null && s.lon !== null).length });
 }
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   try {
     if (req.query.list) {
+      const l = await stationList();
+      if (!l) { res.setHeader('Cache-Control', 'no-store'); return res.status(502).json({ error: 'NOAA returned no stations' }); }
       res.setHeader('Cache-Control', 's-maxage=86400, stale-while-revalidate=86400');
-      return res.status(200).json(await stationList());
+      return res.status(200).json(l);
     }
     const ids = String(req.query.ids || '')
       .toUpperCase().split(',').map(s => s.trim())
