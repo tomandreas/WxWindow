@@ -352,6 +352,11 @@ details.fold>*:not(summary){margin-bottom:10px}
 .arrmenu[hidden]{display:none}
 .arrmenu button{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:4px;font-size:13px;min-height:44px}
 .arrmenu button:last-child{margin-bottom:0}
+
+/* v1.21: tap a TAF line to mark its period on the strips */
+.pill[role=button]{cursor:pointer}
+.pill.picked{box-shadow:0 0 0 2.5px #fff}
+.pill.picked.inwin{outline-offset:4px}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -394,7 +399,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     </div>
   </div>
 
-  <div class="version">TAF Timeline v1.20</div>
+  <div class="version">TAF Timeline v1.21</div>
 </div>
 
 <div class="wrap" id="editView" hidden>
@@ -766,6 +771,28 @@ details.fold>*:not(summary){margin-bottom:10px}
     return out;
   }
 
+  // The time a TAF group covers. written = the period the group states (TEMPO/PROB/BECMG), the validity for the main
+  // forecast, and for an FM from its start until the next change. prevail = the whole time its weather is in force,
+  // which for a BECMG runs on after the change window and for the main forecast ends at the first change.
+  function groupSpans(taf, g) {
+    if (!taf || taf.error || !g) return null;
+    const v = taf.valid, clip = (a, b) => [Math.max(a, v.from), Math.min(b, v.to)];
+    if (g.kind === 'TEMPO' || g.kind === 'PROB' || g.kind === 'PROBTEMPO') return { written: clip(g.from, g.to), prevail: null };
+    let lo = Infinity, hi = -Infinity;
+    for (const b of taf.base) if (b.states.some(x => x.src === g)) { lo = Math.min(lo, b.from); hi = Math.max(hi, b.to); }
+    const inForce = isFinite(lo) ? clip(lo, hi) : null;
+    if (g.kind === 'BASE') return { written: clip(g.from, g.to), prevail: inForce };
+    if (g.kind === 'FM') return { written: inForce || clip(g.from, g.to), prevail: null };
+    if (g.kind === 'BECMG') return { written: clip(g.from, g.to), prevail: inForce };
+    return { written: clip(g.from, g.to), prevail: null };
+  }
+  // The groups that apply at time t: the main forecast or the group in force, both sides of a BECMG change, and any TEMPO/PROB
+  function groupsAtTime(taf, t, skip) {
+    const c = candidatesAt(taf, t, skip), out = [];
+    if (c) for (const x of c) if (x.src && !out.includes(x.src)) out.push(x.src);
+    return out;
+  }
+
   // Most limiting category at time t (each candidate state picks its own approach)
   function evalAt(taf, t, ctx) {
     const c = candidatesAt(taf, t, ctx.skip);
@@ -1002,7 +1029,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   const api = {
     STEP_MIN, STEP_MS, CAT, CAT_NAME, CAT_VERDICT, FUEL, TYPE_A_DH, DEFAULT_CFG,
     parseTAF, parseMETAR, sysOf, eqKey, hasIndependent, hasNonGnss, windCheck, pickApproach,
-    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts, limitingCell, normName, matchStations, distNm, pickNearby, buildRoute, arrangeNS
+    limitsFor, classifyApproach, evalState, evalAt, buildGrid, verdictAt, buildVerdicts, resolveTime, candidatesAt, altBelowAt, verdictWindow, groupsInWindow, windCosts, limitingCell, normName, matchStations, distNm, pickNearby, buildRoute, arrangeNS, groupSpans, groupsAtTime
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.TAFCore = api;
@@ -1017,7 +1044,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.20';
+  const VERSION = '1.21';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed', mode: 'taft.mode', route: 'taft.route', ref: 'taft.ref', arr: 'taft.arr' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -1058,6 +1085,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   const ui = { menu: null, edit: null, draft: null, view: 'main', renaming: null, confirmDel: null };
   const flight = { dep: null, ft: null, eta: null, set: new Set() };
   const inspect = {};                        // icao -> time being inspected
+  const picked = {};                         // icao -> { gi, key }: the TAF group whose time period is marked on the strips (this TAF issue only)
 
   /* ---------- formatting ---------- */
   const pad = n => String(n).padStart(2, '0');
@@ -1465,6 +1493,14 @@ details.fold>*:not(summary){margin-bottom:10px}
   function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
   function mix(a, b, f) { const A = hexToRgb(a), B = hexToRgb(b); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * f)).join(',') + ')'; }
 
+  // The groups marked on a card: the one you tapped in the TAF, otherwise the groups in force at the time you tapped on the strip
+  function markedGroups(m, id) {
+    if (!m || !m.taf || m.taf.error || tafExpired(m)) return [];
+    const pk = picked[id];
+    if (pk && pk.key === m.taf.raw && m.taf.groups[pk.gi]) return [m.taf.groups[pk.gi]];
+    if (inspect[id] != null) return C.groupsAtTime(m.taf, inspect[id], m.skip);
+    return [];
+  }
   function draw(id) {
     const m = model[id]; const cv = document.querySelector('canvas[data-id="' + id + '"]');
     if (!cv || !m) return;
@@ -1525,6 +1561,17 @@ details.fold>*:not(summary){margin-bottom:10px}
       }
     }
 
+    // time period of the marked TAF groups: a band over both strips, lighter where the weather stays in force after the group's own period
+    for (const mg of markedGroups(m, id)) {
+      const sp = C.groupSpans(m.taf, mg); if (!sp) continue;
+      const off = !!(m.skip && m.skip.has(mg));
+      const band = (a, b, alpha) => { const x0 = Math.max(0, x(a)), x1 = Math.min(W, x(b)); if (x1 > x0) { g.fillStyle = 'rgba(255,255,255,' + alpha + ')'; g.fillRect(x0, yRaw - 1, x1 - x0, yBar + hBar - yRaw + 1); } };
+      if (sp.prevail) band(sp.prevail[0], sp.prevail[1], off ? 0.04 : 0.09);
+      band(sp.written[0], sp.written[1], off ? 0.08 : 0.2);
+      g.save(); g.strokeStyle = off ? 'rgba(255,255,255,.55)' : '#ffffff'; g.lineWidth = 1.5; if (off) g.setLineDash([3, 3]);
+      for (const t of sp.written) { const px = Math.round(x(t)) + 0.5; if (px >= 0 && px <= W) { g.beginPath(); g.moveTo(px, yRaw - 2); g.lineTo(px, yBar + hBar + 1); g.stroke(); } }
+      g.restore();
+    }
     const dep = isDep(id), refTime = dep ? flight.dep : flight.eta;
     if (refTime != null) {
       // +75kg fuel window (dashed): 2 h before (or from departure, if later) to 2 h after. At the departure aerodrome it starts at ETD.
@@ -1729,9 +1776,12 @@ details.fold>*:not(summary){margin-bottom:10px}
     let winSet = null;
     if (refT(m) != null && m.gridAuto && vcat != null && vcat >= 0) winSet = C.groupsInWindow(m.taf, selGrid(m), gridIndex(m, refT(m)), vFt(m), vcat, m.skip, m.windOff);
     m.winGroups = winSet;
+    const marked = new Set(markedGroups(m, id));
     card.querySelectorAll('.pills .pill[data-gi]').forEach(el => {
       const g = m.taf && m.taf.groups[+el.dataset.gi];
       el.classList.toggle('inwin', !!(winSet && g && winSet.has(g)));
+      el.classList.toggle('picked', !!(g && marked.has(g)));
+      if (el.hasAttribute('aria-pressed')) el.setAttribute('aria-pressed', String(!!(g && marked.has(g))));
     });
     if (tipEl) tipEl.innerHTML = tipHTML(m, tips[id]);
     // below alternate minima within ETA +/- 1 h
@@ -1857,16 +1907,17 @@ details.fold>*:not(summary){margin-bottom:10px}
   /* ---------- rendering ---------- */
   function pillHTML(text, m, st, opt) {
     if (opt && tafExpired(m)) return '<div class="pill exp" data-gi="' + opt.gi + '">' + esc(text) + '</div>';   // expired: grey, no colour, no buttons
+    const pk = opt ? ' data-act="pick" role="button" tabindex="0" aria-pressed="false"' : '';
     const btn = (opt && opt.prob30 && m.hasMin ? '<button class="disc" data-act="disc" data-g="' + opt.gi + '">' + (opt.off ? 'Include' : 'Disregard') + '</button>' : '') +
       (opt && opt.wind && m.hasMin && !opt.off ? '<button class="disc" data-act="wind" data-g="' + opt.gi + '">' + (opt.wind === 'on' ? 'Use wind' : 'Ignore wind') + '</button>' : '');
     const wtag = opt && opt.wind === 'on' && !opt.off ? '<span class="tag wtag">WIND IGNORED</span>' : '';
     const dg = opt ? ' data-gi="' + opt.gi + '"' : '';
-    if (opt && opt.off) return '<div class="pill off"' + dg + '>' + esc(text) + btn + '</div>';
-    if (!m.hasMin) return '<div class="pill neutral"' + dg + '>' + esc(text) + btn + '</div>';
+    if (opt && opt.off) return '<div class="pill off"' + dg + pk + '>' + esc(text) + btn + '</div>';
+    if (!m.hasMin) return '<div class="pill neutral"' + dg + pk + '>' + esc(text) + btn + '</div>';
     const r = stateResult(m, st);
     const tag = r.cat === 2 ? '<span class="tag">' + C.FUEL.toUpperCase() + '</span>' : '';
     const title = r.apL + ': ' + catName(r.cat, m) + (r.factor ? ', ' + r.factor : '');
-    return '<div class="pill"' + dg + ' style="background:' + COLORS[r.cat] + '" title="' + esc(title) + '">' + esc(text) + tag + wtag + btn + '</div>';
+    return '<div class="pill"' + dg + pk + ' style="background:' + COLORS[r.cat] + '" title="' + esc(title) + '">' + esc(text) + tag + wtag + btn + '</div>';
   }
   function groupText(g, taf) {
     if (g.kind === 'BASE') {
@@ -1993,6 +2044,7 @@ details.fold>*:not(summary){margin-bottom:10px}
           const r = cv.getBoundingClientRect();
           const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
           inspect[id] = axis.start + Math.max(0, Math.min(1, px / r.width)) * (axis.end - axis.start);
+          delete picked[id];
           updateCardDynamic(id);
         };
         cv.addEventListener('click', ev => {
@@ -2024,6 +2076,12 @@ details.fold>*:not(summary){margin-bottom:10px}
     switch (t.dataset.act) {
       case 'warn': toast('User entered, not from AIP.'); break;
       case 'fold': toggleFold(id); break;
+      case 'pick': {                                              // tap a TAF line: mark its period on the strips; tap it again to clear
+        const pill = t.closest('.pill'), m = model[id]; if (!pill || !m || !m.taf) break;
+        const gi = +pill.dataset.gi, pk = picked[id];
+        if (pk && pk.gi === gi && pk.key === m.taf.raw) delete picked[id]; else picked[id] = { gi, key: m.taf.raw };
+        updateCardDynamic(id); draw(id); break;
+      }
       case 'menu': { const prev = ui.menu; ui.menu = prev === id ? null : id; if (prev && prev !== id) updateCardDynamic(prev); updateCardDynamic(id); break; }
       case 'pin': pin[id] = t.dataset.ap; ui.menu = null; drawAll(); break;
       case 'auto': delete pin[id]; ui.menu = null; drawAll(); break;
@@ -2058,7 +2116,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     }
   });
   $('cards').addEventListener('keydown', e => {
-    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.aprow[role=button], .ed[role=button], .chead[role=button]')) { e.preventDefault(); e.target.click(); }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.aprow[role=button], .ed[role=button], .chead[role=button], .pill[role=button]')) { e.preventDefault(); e.target.click(); }
   });
   const onField = e => {
     const f = e.target.dataset && e.target.dataset.f;
