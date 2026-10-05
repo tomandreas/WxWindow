@@ -344,6 +344,14 @@ details.fold>*:not(summary){margin-bottom:10px}
 /* the chip row scrolls sideways; fade its right edge so a chip that runs off the end looks intentional */
 .chips{-webkit-mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(90deg,#000 calc(100% - 24px),transparent)}
 .chips::after{content:'';flex:none;width:22px}
+
+/* v1.20: Arrange by on the Edit page */
+#editView .page-h{position:relative;gap:8px}
+#editView .page-h h2{font-size:26px}
+.arrmenu{position:absolute;right:12px;z-index:30;margin-top:-6px;min-width:230px;background:#0e131d;border:1px solid var(--amber);border-radius:10px;padding:5px;box-shadow:0 14px 32px rgba(0,0,0,.55)}
+.arrmenu[hidden]{display:none}
+.arrmenu button{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 12px;margin-bottom:4px;font-size:13px;min-height:44px}
+.arrmenu button:last-child{margin-bottom:0}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -373,7 +381,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     <div class="fhint"><span id="fHint">Set any two. The third is calculated.</span><button id="fReset">Clear</button></div>
   </section>
 
-  <div class="sumhead" id="sumHead" hidden><div class="chips" id="chips"></div><div class="sumbtns"><button class="btn small" id="nsBtn" hidden aria-label="Arrange north to south">N→S</button><button class="btn small" id="editBtn">Edit</button></div></div>
+  <div class="sumhead" id="sumHead" hidden><div class="chips" id="chips"></div><div class="sumbtns"><button class="btn small" id="editBtn">Edit</button></div></div>
   <div class="modeline" id="modeLine" hidden></div>
   <div class="summary" id="summary"></div>
   <div id="cards"></div>
@@ -386,11 +394,12 @@ details.fold>*:not(summary){margin-bottom:10px}
     </div>
   </div>
 
-  <div class="version">TAF Timeline v1.19</div>
+  <div class="version">TAF Timeline v1.20</div>
 </div>
 
 <div class="wrap" id="editView" hidden>
-  <div class="page-h"><h2>Edit aerodromes</h2><span class="grow1"></span><button class="btn primary small" id="editDone">Done</button></div>
+  <div class="page-h"><h2>Edit aerodromes</h2><span class="grow1"></span><button class="btn small" id="arrBtn" aria-haspopup="true" aria-expanded="false">Arrange by</button><button class="btn primary small" id="editDone">Done</button></div>
+  <div class="arrmenu" id="arrMenu" hidden role="menu"><button role="menuitem" data-arr="ns">North to south</button><button role="menuitem" data-arr="dist">Distance from my position</button></div>
   <div id="editList"></div>
   <div class="sec">Cards</div>
   <div class="cardbtns"><button class="btn small" id="colAll">Collapse all</button><button class="btn small" id="expAll">Expand all</button></div>
@@ -1008,8 +1017,8 @@ details.fold>*:not(summary){margin-bottom:10px}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.19';
-  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed', mode: 'taft.mode', route: 'taft.route', ref: 'taft.ref' };
+  const VERSION = '1.20';
+  const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed', mode: 'taft.mode', route: 'taft.route', ref: 'taft.ref', arr: 'taft.arr' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
   const $ = id => document.getElementById(id);
@@ -1035,6 +1044,9 @@ details.fold>*:not(summary){margin-bottom:10px}
   let msa = load(LS.msa, {});                // { ICAO: ft above aerodrome } user entered ceiling for no alternate
   let mode = load(LS.mode, null);            // how the list was made: { kind: 'closest'|'route', ... }; null once you edit it yourself
   if (mode && (typeof mode !== 'object' || !['closest', 'route'].includes(mode.kind))) mode = null;
+  // How the list was arranged: { order: 'ns' | 'dist' | 'mine', dist: {ICAO: nm}, ref: 'your position' | ICAO }. null = the order the mode or group gave it.
+  let arr = load(LS.arr, null);
+  if (arr && (typeof arr !== 'object' || !['ns', 'dist', 'mine'].includes(arr.order))) arr = null;
   let collapsed = load(LS.col, {});          // { ICAO: true } cards the user has collapsed, remembered on this device
   if (!collapsed || typeof collapsed !== 'object' || Array.isArray(collapsed)) collapsed = {};
   let groups = load(LS.groups, []);          // [{ n: 'Los HFT', ids: ['ENHF', ...] }] named by the user, this device only
@@ -1157,6 +1169,17 @@ details.fold>*:not(summary){margin-bottom:10px}
   /* ---------- data ---------- */
   // Automatic refresh, fixed (not a setting): when the app is opened or comes back to the front and the data is more
   // than 5 min old, and 40 min after the newest METAR on the list. If nothing new is out it retries every 5 min.
+  // When the METAR was observed: NOAA's obsTime if we have it, otherwise the report's own ddhhmmZ group, so every source
+  // shows the same "obs 24 min ago".
+  function obsMs(s) {
+    if (!s) return null;
+    if (s.metarTime) return s.metarTime;
+    const mm = s.metar && /^\s*(?:METAR|SPECI)?\s*(?:COR\s+)?[A-Z0-9]{4}\s+(\d{2})(\d{2})(\d{2})Z/.exec(s.metar);
+    if (!mm) return null;
+    const ref = s.fetchedAt || (data && data.fetchedAt) || Date.now();
+    const t = C.resolveTime(+mm[1], +mm[2], +mm[3], ref);
+    return t != null && t <= ref + 2 * H ? t : null;
+  }
   const AUTO_AFTER_METAR_MIN = 40, RETRY_MIN = 5, OPEN_STALE_MIN = 5, METAR_MAX_AGE_MIN = 90;
   let fetching = false, lastAttempt = 0;
   function busy() {   // do not re-draw under the user's fingers
@@ -1166,7 +1189,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   function nextAutoAt() {
     if (data.demo || !list.length) return null;
     const now = Date.now();
-    const mt = list.map(id => data.stations[id] && data.stations[id].metarTime).filter(t => t && now - t <= METAR_MAX_AGE_MIN * M);
+    const mt = list.map(id => obsMs(data.stations[id])).filter(t => t && now - t <= METAR_MAX_AGE_MIN * M);
     const target = (mt.length ? Math.max.apply(null, mt) : (data.fetchedAt || now)) + AUTO_AFTER_METAR_MIN * M;
     const floor = Math.max(lastAttempt, data.fetchedAt || 0) + RETRY_MIN * M;       // never more often than every 5 min
     return Math.max(target, floor);
@@ -1783,10 +1806,10 @@ details.fold>*:not(summary){margin-bottom:10px}
     if (!list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
     const wrapRow = (id, row) => '<div class="swr' + (ui.swOpen === id ? ' open' : '') + '" data-sid="' + id + '"><button class="swdel" data-id="' + id + '" tabindex="-1" aria-label="Remove ' + id + '">Remove</button>' + row + '</div>';
     const tag = id => {
-      if (!mode) return '';
-      if (mode.kind === 'route' && id === mode.from) return '<small class="dep">DEP</small>';
-      if (mode.kind === 'route' && id === mode.to) return '<small class="dest">DEST</small>';
-      const nm = mode.nm && mode.nm[id];
+      if (mode && mode.kind === 'route' && id === mode.from) return '<small class="dep">DEP</small>';
+      if (mode && mode.kind === 'route' && id === mode.to) return '<small class="dest">DEST</small>';
+      if (!mode && !(arr && arr.order === 'dist')) return '';
+      const nm = arr && arr.order === 'dist' ? (arr.dist && arr.dist[id]) : (mode && mode.nm && mode.nm[id]);
       return nm != null ? '<small>' + Math.round(nm) + ' nm</small>' : '';
     };
     el.innerHTML = list.map(id => {
@@ -1926,8 +1949,8 @@ details.fold>*:not(summary){margin-bottom:10px}
     }
     h += editorHTML(id);
     if (m.metar) {
-      const old = s.metarTime && Date.now() - s.metarTime > 30 * M;
-      h += '<div class="metar"><div class="lbl new"><span class="c2">METAR</span><span class="sm' + (old ? ' stale' : '') + '">' + (s.metarTime ? 'obs ' + ago(s.metarTime) : esc(m.metar.time || '')) + '</span></div>';
+      const ob = obsMs(s), old = ob && Date.now() - ob > 30 * M;
+      h += '<div class="metar"><div class="lbl new"><span class="c2">METAR</span><span class="sm' + (old ? ' stale' : '') + '">' + (ob ? 'obs ' + ago(ob) : esc(m.metar.time || '')) + '</span></div>';
       h += metarHTML(m) + '</div>';
     }
     if (m.hasMin) h += '<div class="tl"><canvas data-id="' + id + '" aria-label="TAF timeline for ' + id + '"></canvas><div class="readout"></div></div>';
@@ -2116,7 +2139,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let drag = null;
   function commitOrder() {
     const ids = [...$('editView').querySelectorAll('.rrow')].map(r => r.dataset.id);
-    if (ids.length === list.length && ids.join() !== list.join()) { list = ids; save(LS.list, list); markEdited(); }
+    if (ids.length === list.length && ids.join() !== list.join()) { list = ids; save(LS.list, list); setArr(mode ? { order: 'mine' } : null); }
   }
   function updateDrag() {
     const row = drag.row;
@@ -2199,11 +2222,14 @@ details.fold>*:not(summary){margin-bottom:10px}
   function hideUndo() { clearTimeout(undoTimer); undoFn = null; $('undoBar').style.display = 'none'; }
   $('undoBtn').addEventListener('click', () => { const f = undoFn; hideUndo(); if (f) f(); });
   function setMode(m) { mode = m; save(LS.mode, mode); }
+  function setArr(a) { arr = a; save(LS.arr, arr); }
+  const snap = () => ({ list: list.slice(), mode, arr, pin: Object.assign({}, pin) });
+  function restore(s) { list = s.list.slice(); save(LS.list, list); setMode(s.mode); setArr(s.arr); for (const k of Object.keys(pin)) delete pin[k]; Object.assign(pin, s.pin); render(); if (ui.view === 'edit') renderEdit(); }
   // A change you make yourself (add, remove, reorder, N→S) keeps the mode but unlights the buttons. Objects are replaced, never edited in place.
   function markEdited() { if (mode && !mode.edited) setMode(Object.assign({}, mode, { edited: true })); }
   function removeAerodrome(id) {
     const idx = list.indexOf(id); if (idx < 0) return;
-    const pinned = pin[id], opened = ui.swOpen === id, prevMode = mode;
+    const pinned = pin[id], opened = ui.swOpen === id, prevMode = mode, prevArr = arr;
     list.splice(idx, 1); save(LS.list, list); markEdited();
     if (ui.menu === id) ui.menu = null;
     if (ui.edit && ui.edit.icao === id) { ui.edit = null; ui.draft = null; }
@@ -2211,7 +2237,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     render();
     showUndo(id + ' removed', () => {
       if (list.includes(id)) return;
-      list.splice(Math.min(idx, list.length), 0, id); save(LS.list, list); setMode(prevMode);
+      list.splice(Math.min(idx, list.length), 0, id); save(LS.list, list); setMode(prevMode); setArr(prevArr);
       if (pinned) pin[id] = pinned;
       render();
     });
@@ -2279,56 +2305,88 @@ details.fold>*:not(summary){margin-bottom:10px}
   /* ---------- named groups ---------- */
   const cleanName = s => String(s || '').trim().replace(/\s+/g, ' ');
   const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+  // A mode button is lit only while the list is exactly what the mode gave: nothing added, removed or arranged
+  const lit = kind => !!(mode && mode.kind === kind && !mode.edited && !arr);
   function renderChips() {
     const head = $('sumHead'), box = $('chips');
     head.hidden = false;
     $('editBtn').hidden = !list.length;
     box.innerHTML =
-      '<button class="chip' + (mode && mode.kind === 'closest' && !mode.edited ? ' on' : '') + '" data-act="closest"' + (ui.locating ? ' disabled' : '') + '>' + (ui.locating ? 'Locating…' : 'Closest') + '</button>' +
-      '<button class="chip' + (mode && mode.kind === 'route' && !mode.edited ? ' on' : '') + '" data-act="route">Route</button>' +
+      '<button class="chip' + (lit('closest') ? ' on' : '') + '" data-act="closest"' + (ui.locating ? ' disabled' : '') + '>' + (ui.locating ? 'Locating…' : 'Closest') + '</button>' +
+      '<button class="chip' + (lit('route') ? ' on' : '') + '" data-act="route">Route</button>' +
       groups.map((g, i) => '<button class="chip' + (!mode && sameSet(g.ids, list) ? ' on' : '') + '" data-act="usegroup" data-i="' + i + '">' + esc(g.n) + '</button>').join('') +
       (list.length ? '<button class="chip clr" data-act="clearall">Clear all</button>' : '');
-    $('nsBtn').hidden = list.length < 2;
     const ml = $('modeLine');
-    if (mode && mode.kind === 'closest') ml.textContent = 'Within ' + mode.radius + ' nm of ' + (mode.ref || 'your position') + ' · nearest first';
-    else if (mode && mode.kind === 'route') ml.textContent = mode.from + ' → ' + mode.to + (mode.noPos ? ' · no position for ' + mode.to + ', add alternates yourself' : ' · alternates within ' + mode.radius + ' nm');
-    else ml.textContent = '';
-    if (ml.textContent && mode.edited) ml.textContent += ' · edited';
+    const from = arr && arr.ref && arr.ref !== 'your position' ? arr.ref : 'your position';
+    const orderTxt = !arr ? '' : arr.order === 'ns' ? 'north to south' : arr.order === 'dist' ? 'nearest first from ' + from : 'your order';
+    if (mode && mode.kind === 'closest') ml.textContent = 'Within ' + mode.radius + ' nm of ' + (mode.ref || 'your position') + ' · ' + (orderTxt || 'nearest first');
+    else if (mode && mode.kind === 'route') ml.textContent = mode.from + ' → ' + mode.to + (mode.noPos ? ' · no position for ' + mode.to + ', add alternates yourself' : ' · alternates within ' + mode.radius + ' nm') + (orderTxt ? ' · ' + orderTxt : '');
+    else ml.textContent = arr && arr.order !== 'mine' ? orderTxt.charAt(0).toUpperCase() + orderTxt.slice(1) : '';
+    if (ml.textContent && mode && mode.edited) ml.textContent += ' · edited';
     ml.hidden = !ml.textContent;
   }
   // Replace the whole list (a group, Closest or Route), with Undo for 5 seconds
   function replaceList(nl, nm, label) {
-    const prev = { list: list.slice(), mode, pin: Object.assign({}, pin) };
-    list = nl.slice(); save(LS.list, list); setMode(nm);
+    const prev = snap();
+    list = nl.slice(); save(LS.list, list); setMode(nm); setArr(null);
     for (const k of Object.keys(pin)) delete pin[k];
     render();
     if (!data.demo) refresh();
-    showUndo(label, () => { list = prev.list; save(LS.list, list); setMode(prev.mode); for (const k of Object.keys(pin)) delete pin[k]; Object.assign(pin, prev.pin); render(); });
+    showUndo(label, () => restore(prev));
   }
   // Clear all: empties the list and the mode; the saved groups are untouched
   function clearAll() {
     if (!list.length) return;
-    const prev = { list: list.slice(), mode, pin: Object.assign({}, pin) };
-    list = []; save(LS.list, list); setMode(null);
+    const prev = snap();
+    list = []; save(LS.list, list); setMode(null); setArr(null);
     for (const k of Object.keys(pin)) delete pin[k];
     ui.menu = null; ui.edit = null; ui.draft = null; ui.swOpen = null;
     render();
-    showUndo('List cleared', () => { list = prev.list; save(LS.list, list); setMode(prev.mode); Object.assign(pin, prev.pin); render(); });
+    showUndo('List cleared', () => restore(prev));
   }
-  // N→S: a one-time rearrangement of the current list. Route keeps DEP and DEST on top and arranges the rest.
+  // Arrange by: one-time rearrangements of the current list. A route keeps DEP and DEST on top and arranges the rest.
   const NS_REF_LAT = 69.683;                                  // Tromsø, used when ENTC has no position in the list
+  const routeTop = () => (mode && mode.kind === 'route' ? [mode.from, mode.to].filter(id => list.includes(id)) : []);
+  function applyArrangement(nl, a, label) {
+    const prev = snap();
+    list = nl; save(LS.list, list); setArr(a);
+    render(); if (ui.view === 'edit') renderEdit();
+    showUndo(label, () => restore(prev));
+  }
   function arrangeNorthSouth() {
-    if (list.length < 2) return;
-    const prev = { list: list.slice(), mode };
-    const top = mode && mode.kind === 'route' ? [mode.from, mode.to].filter(id => list.includes(id)) : [];
+    if (list.length < 2) { toast('Add more aerodromes first.'); return; }
+    const top = routeTop();
     const rest = C.arrangeNS(list.filter(id => !top.includes(id)), coords, coords.ENTC ? coords.ENTC.lat : NS_REF_LAT);
     const nl = top.concat(rest);
-    if (nl.join() === list.join()) { toast('Already arranged north to south.'); return; }
-    list = nl; save(LS.list, list); markEdited();
-    render();
-    showUndo('Arranged north to south', () => { list = prev.list; save(LS.list, list); setMode(prev.mode); render(); });
+    if (nl.join() === list.join() && arr && arr.order === 'ns') { toast('Already arranged north to south.'); return; }
+    applyArrangement(nl, { order: 'ns' }, 'Arranged north to south');
   }
-  $('nsBtn').addEventListener('click', arrangeNorthSouth);
+  // Nearest first from a position: your GPS position, or an aerodrome you name when location is off
+  function arrangeByDistance(origin, label, refId) {
+    if (list.length < 2) { toast('Add more aerodromes first.'); return; }
+    const top = routeTop(), rest = list.filter(id => !top.includes(id));
+    const dist = {};
+    for (const id of list) { const c = coords[id]; if (c) dist[id] = C.distNm(origin.lat, origin.lon, c.lat, c.lon); }
+    const known = rest.filter(id => dist[id] != null).sort((x, y) => (dist[x] - dist[y]) || x.localeCompare(y));
+    const nl = top.concat(known, rest.filter(id => dist[id] == null));      // no position: last, in their current order
+    if (nl.join() === list.join() && arr && arr.order === 'dist') { toast('Already arranged by distance.'); return; }
+    applyArrangement(nl, { order: 'dist', dist, ref: refId || 'your position' }, 'Arranged nearest first from ' + (refId || 'your position'));
+  }
+  async function doArrangeByDistance() {
+    if (list.length < 2) { toast('Add more aerodromes first.'); return; }
+    if (!(await ensurePositions())) return;
+    let pos = null;
+    try { pos = await getPosition(); } catch (e) { pos = null; }
+    if (pos) arrangeByDistance(pos, 'your position', null); else openModal('arr');
+  }
+  function closeArrMenu() { $('arrMenu').hidden = true; $('arrBtn').setAttribute('aria-expanded', 'false'); }
+  $('arrBtn').addEventListener('click', e => { e.stopPropagation(); const open = $('arrMenu').hidden; $('arrMenu').hidden = !open; $('arrBtn').setAttribute('aria-expanded', String(open)); });
+  $('arrMenu').addEventListener('click', e => {
+    const b = e.target.closest('[data-arr]'); if (!b) return;
+    closeArrMenu();
+    if (b.dataset.arr === 'ns') arrangeNorthSouth(); else doArrangeByDistance();
+  });
+  document.addEventListener('click', e => { if (!$('arrMenu').hidden && !e.target.closest('#arrMenu, #arrBtn')) closeArrMenu(); });
   const candidates = () => Object.keys(AERO_DATA.ap || {}).filter(id => coords[id] && hasTaf[id] !== false)
     .map(id => ({ id, lat: coords[id].lat, lon: coords[id].lon, ils: AERO_DATA.ap[id].a.some(a => a.t === 'ILS') }));
   function getPosition() {
@@ -2376,10 +2434,12 @@ details.fold>*:not(summary){margin-bottom:10px}
     const rt = load(LS.route, {}), ref = load(LS.ref, '');
     const spec = kind === 'route'
       ? { title: 'Route', msg: 'Enter the departure and the destination. Alternates near the destination are added below.', ok: 'Show route', fields: [['From', rt.from || ''], ['To', rt.to || '']] }
-      : { title: 'Closest aerodromes', msg: 'Location is off. Enter an aerodrome to measure from.', ok: 'Show closest', fields: [['Measure from', ref || '']] };
+      : kind === 'arr'
+        ? { title: 'Arrange by distance', msg: 'Location is off. Enter an aerodrome to measure from.', ok: 'Arrange', fields: [['Measure from', ref || '']] }
+        : { title: 'Closest aerodromes', msg: 'Location is off. Enter an aerodrome to measure from.', ok: 'Show closest', fields: [['Measure from', ref || '']] };
     $('mTitle').textContent = spec.title; $('mMsg').textContent = spec.msg; $('mOk').textContent = spec.ok;
     $('mErr').textContent = '';
-    $('mAgain').hidden = kind !== 'ref';
+    $('mAgain').hidden = kind === 'route';
     $('mFields').innerHTML = spec.fields.map((f, i) => '<div class="mf"><label for="mf' + i + '">' + f[0] + '</label><input id="mf' + i + '" data-i="' + i + '" value="' + esc(f[1]) + '" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="ICAO or airport name"><div class="msug" id="ms' + i + '"></div></div>').join('');
     mFields = spec.fields.map((f, i) => $('mf' + i));
     $('modal').hidden = false;
@@ -2413,11 +2473,12 @@ details.fold>*:not(summary){margin-bottom:10px}
       const a = fieldId(0);
       if (!a) { err('Enter an aerodrome to measure from.'); return; }
       if (!coords[a]) { err('No position for ' + a + '. Try another aerodrome.'); return; }
-      save(LS.ref, a); closeModal(); applyClosest(coords[a], a, a);
+      save(LS.ref, a); closeModal();
+      if (mKind === 'arr') arrangeByDistance(coords[a], a, a); else applyClosest(coords[a], a, a);
     }
   });
   $('mCancel').addEventListener('click', closeModal);
-  $('mAgain').addEventListener('click', () => { closeModal(); doClosest(); });
+  $('mAgain').addEventListener('click', () => { const k = mKind; closeModal(); if (k === 'arr') doArrangeByDistance(); else doClosest(); });
   $('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
 
   function saveGroup() {
@@ -2485,7 +2546,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     const v = pickId || resolveAerodrome(typed, new Set(list));
     if (!v) { toast(typed ? 'No aerodrome matches "' + typed + '".' : 'Type an ICAO code or an airport name.'); return; }
     if (list.includes(v)) { toast(v + ' is already in the list.'); return; }
-    list.push(v); save(LS.list, list); markEdited(); $('addIn').value = ''; hideSugg();
+    list.push(v); save(LS.list, list); markEdited(); if (arr) setArr(mode ? { order: 'mine' } : null); $('addIn').value = ''; hideSugg();   // an added aerodrome goes last, so the arrangement no longer holds
     render();
     if (!data.demo) refresh();
   }
@@ -2533,7 +2594,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); autoCheck(true); } });
 
   $('tz').textContent = tzLabel(); fillCfg(); renderLegend(); syncFlight(); buildIndex(); render(); loadStationList(); autoCheck(true);
-  window.__taf = { model, flight, onSlider, pin, ui, disc, arrangeNorthSouth, get mode() { return mode; }, get coords() { return coords; }, openModal, applyRoute, applyClosest, get collapsed() { return collapsed; }, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
+  window.__taf = { model, flight, onSlider, pin, ui, disc, arrangeNorthSouth, arrangeByDistance, get arr() { return arr; }, get mode() { return mode; }, get coords() { return coords; }, openModal, applyRoute, applyClosest, get collapsed() { return collapsed; }, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
 })();
 
 </script>
