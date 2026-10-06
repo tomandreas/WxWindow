@@ -357,6 +357,31 @@ details.fold>*:not(summary){margin-bottom:10px}
 .pill[role=button]{cursor:pointer}
 .pill.picked{box-shadow:0 0 0 2.5px #fff}
 .pill.picked.inwin{outline-offset:4px}
+
+/* v1.22: wide screens (a PC, or a tablet held sideways). Nothing above applies differently below 1000 px. */
+.sumaxis,.srm{display:none}
+@media (min-width:1000px){
+  #mainView{max-width:2400px;padding-left:22px;padding-right:22px}
+  /* flight times: the three sliders in one row */
+  .flight{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:30px;align-items:center;padding:8px 14px 6px}
+  .flight .tz,.flight .fhint{grid-column:1/-1}
+  /* the thin strips of the summary run the whole width, on one shared time axis */
+  .sumaxis{display:block;position:relative;height:17px;margin:0 11px 2px;font-size:10px;color:var(--muted)}
+  .sumaxis span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap;line-height:12px}
+  .sumaxis span::after{content:'';position:absolute;left:50%;top:12px;width:1px;height:4px;background:#2c3546}
+  .sumaxis span.dy{color:var(--text)}
+  .sumaxis span.dy::after{background:var(--faint)}
+  /* the cards, two side by side, each with its own wide strips */
+  #cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:16px;align-items:start}
+  #cards>:not(.card){grid-column:1/-1}
+}
+/* mouse only: a small x appears on a summary row when you point at it (touch screens keep the swipe) */
+@media (min-width:1000px) and (hover:hover){
+  .swr .srow{padding-right:44px}
+  .srm{display:grid;place-items:center;position:absolute;right:9px;top:50%;transform:translateY(-50%);width:26px;height:26px;border-radius:6px;background:var(--surface2);border:1px solid var(--line);color:var(--muted);font-size:15px;line-height:1;opacity:0;z-index:2;cursor:pointer}
+  .swr:hover .srm,.srm:focus-visible{opacity:1}
+  .srm:hover{color:#fff;border-color:var(--c-red)}
+}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -388,6 +413,7 @@ details.fold>*:not(summary){margin-bottom:10px}
 
   <div class="sumhead" id="sumHead" hidden><div class="chips" id="chips"></div><div class="sumbtns"><button class="btn small" id="editBtn">Edit</button></div></div>
   <div class="modeline" id="modeLine" hidden></div>
+  <div class="sumaxis" id="sumAxis" aria-hidden="true"></div>
   <div class="summary" id="summary"></div>
   <div id="cards"></div>
 
@@ -399,7 +425,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     </div>
   </div>
 
-  <div class="version">TAF Timeline v1.21</div>
+  <div class="version">TAF Timeline v1.22</div>
 </div>
 
 <div class="wrap" id="editView" hidden>
@@ -1044,7 +1070,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.21';
+  const VERSION = '1.22';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed', mode: 'taft.mode', route: 'taft.route', ref: 'taft.ref', arr: 'taft.arr' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -1854,7 +1880,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     const el = $('summary');
     if (sw && sw.active) return;                       // never re-draw under a swipe
     if (!list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
-    const wrapRow = (id, row) => '<div class="swr' + (ui.swOpen === id ? ' open' : '') + '" data-sid="' + id + '"><button class="swdel" data-id="' + id + '" tabindex="-1" aria-label="Remove ' + id + '">Remove</button>' + row + '</div>';
+    const wrapRow = (id, row) => '<div class="swr' + (ui.swOpen === id ? ' open' : '') + '" data-sid="' + id + '"><button class="swdel" data-id="' + id + '" tabindex="-1" aria-label="Remove ' + id + '">Remove</button>' + row + '<button class="srm" type="button" data-id="' + id + '" tabindex="-1" aria-label="Remove ' + id + '" title="Remove ' + id + '">×</button></div>';
     const tag = id => {
       if (mode && mode.kind === 'route' && id === mode.from) return '<small class="dep">DEP</small>';
       if (mode && mode.kind === 'route' && id === mode.to) return '<small class="dest">DEST</small>';
@@ -1874,6 +1900,22 @@ details.fold>*:not(summary){margin-bottom:10px}
         (ab ? '<span class="saltag">BELOW ALTN MINIMA</span>' : '') + '</span>' + (m.gridAuto ? '<canvas class="sline" data-sid="' + id + '"></canvas>' : '') + '</button>');
     }).join('');
     el.querySelectorAll('canvas.sline').forEach(cv => drawSline(cv, model[cv.dataset.sid]));
+    renderSumAxis();
+  }
+  // Hour labels for the summary strips (wide screens). Same local-time ticks as the cards: every 3 h, the date at midnight.
+  function renderSumAxis() {
+    const el = $('sumAxis'); if (!el) return;
+    if (!axis || !list.length || !Object.keys(data.stations).length) { el.innerHTML = ''; return; }
+    let h = '';
+    const t0 = Math.ceil((axis.start + offMs(axis.start)) / H) * H - offMs(axis.start);
+    for (let t = t0; t <= axis.end; t += H) {
+      const d = lt(t), hr = d.getUTCHours();
+      if (hr % 3 !== 0) continue;
+      const pc = (t - axis.start) / (axis.end - axis.start) * 100;
+      if (pc < 3 || pc > 97) continue;
+      h += '<span' + (hr === 0 ? ' class="dy"' : '') + ' style="left:' + pc.toFixed(3) + '%">' + (hr === 0 ? pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth() + 1) : pad(hr) + ':00') + '</span>';
+    }
+    el.innerHTML = h;
   }
   // The forecast strip of the card (3 px instead of 6 px), same time axis, plus the ETA tick
   function drawSline(cv, m) {
@@ -1894,7 +1936,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   }
   $('summary').addEventListener('click', e => {
     if (Date.now() - swipedAt < 400) return;                           // the click that ends a swipe
-    const del = e.target.closest('.swdel'); if (del) { removeAerodrome(del.dataset.id); return; }
+    const del = e.target.closest('.swdel, .srm'); if (del) { removeAerodrome(del.dataset.id); return; }
     const b = e.target.closest('[data-goto]');
     if (!b) return;
     if (b.parentNode.classList.contains('open')) { closeSw(); return; }   // a tap on an open row closes it
