@@ -391,6 +391,15 @@ details.fold>*:not(summary){margin-bottom:10px}
 .vfrline{font-size:11.5px;color:var(--muted);line-height:1.5;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:4px 0 6px;background:var(--surface2)}
 .vfrline b{color:var(--amber);font-weight:600;margin-right:4px}
 @media (min-width:1000px){.modesw{max-width:520px}}
+
+/* v1.24: advisory line, four-way switch */
+.sap.vfrwhy{white-space:normal;line-height:1.2;font-size:11.5px;overflow:visible;text-overflow:clip}
+.advline{font-size:11.5px;color:var(--amber);opacity:.9;margin:2px 2px 8px;line-height:1.3}
+.advline a{color:inherit;text-decoration:underline;padding:5px 0;display:inline-block}
+.modesw button[data-rules=ifr]{flex:.62}
+.modesw button[data-rules=day]{flex:1}
+.modesw button[data-rules=police],.modesw button[data-rules=mpt]{flex:1.12;line-height:1.2}
+.modesw button{padding-left:2px;padding-right:2px}
 @media (prefers-reduced-motion:no-preference){.spin{animation:spin 1s linear infinite}}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
@@ -408,8 +417,8 @@ details.fold>*:not(summary){margin-bottom:10px}
     </div>
   </header>
 
-  <div class="modesw" id="rulesSw" role="radiogroup" aria-label="Flight rules"><button role="radio" data-rules="ifr" aria-checked="true">IFR</button><button role="radio" data-rules="day" aria-checked="false">VFR DAY</button><button role="radio" data-rules="night" aria-checked="false">VFR NIGHT</button></div>
-  <div class="warn" id="advisory">Advisory only. Colours use ceiling, visibility and tailwind only. RVR reports, METAR trends, thunderstorms, icing and shear are not modelled. Always verify against the official forecast, AIP and OM.</div>
+  <div class="advline">Advisory only. <a href="#" id="advLink">See Settings.</a></div>
+  <div class="modesw" id="rulesSw" role="radiogroup" aria-label="Flight rules"><button role="radio" data-rules="ifr" aria-checked="true">IFR</button><button role="radio" data-rules="day" aria-checked="false">VFR DAY</button><button role="radio" data-rules="police" aria-checked="false">VFR NIGHT<br>POLICE</button><button role="radio" data-rules="mpt" aria-checked="false">VFR NIGHT<br>MPT</button></div>
   <div class="warn bad" id="minMissing" hidden></div>
   <div class="minnote stale airacwarn" id="airacWarn" hidden></div>
 
@@ -435,7 +444,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     </div>
   </div>
 
-  <div class="version">TAF Timeline v1.23</div>
+  <div class="version">TAF Timeline v1.24</div>
 </div>
 
 <div class="wrap" id="editView" hidden>
@@ -453,6 +462,7 @@ details.fold>*:not(summary){margin-bottom:10px}
 
 <div class="wrap" id="settingsView" hidden>
   <div class="page-h"><button class="back" id="setBack">‹ Back</button><h2>Settings</h2></div>
+  <div class="warn" id="advisory">Advisory only. Colours use ceiling, visibility and tailwind only. RVR reports, METAR trends, thunderstorms, icing and shear are not modelled. In VFR the colours use visibility and ceiling only; wind, approach minima, RVR and alternates are not considered. Always verify against the official forecast, AIP and OM.</div>
   <div class="set"><span>Max tailwind (kt)</span><input type="number" id="mTw" inputmode="numeric" step="1" min="0"></div>
   <div class="set"><span>Closest range (nm)<small>Aerodromes within this range of your position, 50 to 200. At most 8, ILS aerodromes first.</small></span><input type="number" id="mCn" inputmode="numeric" step="10" min="50" max="200"></div>
   <div class="set"><span>Alternate radius (nm)<small>Route alternates within this radius of the destination, 20 to 200.</small></span><input type="number" id="mAn" inputmode="numeric" step="10" min="20" max="200"></div>
@@ -810,9 +820,11 @@ details.fold>*:not(summary){margin-bottom:10px}
   // ---- VFR: the colour comes from visibility and ceiling only. Either one below a limit triggers that colour. ----
   const VFR_LIMITS = {
     day:   [{ cat: 0, vis: 800,  cig: 600 },  { cat: 1, vis: 1500, cig: 1000 }, { cat: 2, vis: 5000, cig: 1500 }],
-    night: [{ cat: 0, vis: 1500, cig: 1200 }, { cat: 1, vis: 2000, cig: 1500 }, { cat: 2, vis: 3000, cig: 2000 }]
+    // Night, Police: more terrain, so visibility below 5000 m is always red (amber then comes from the ceiling)
+    police: [{ cat: 0, vis: 5000, cig: 1200 }, { cat: 1, vis: 5000, cig: 1500 }, { cat: 2, vis: 6000, cig: 2000 }],
+    mpt:    [{ cat: 0, vis: 3000, cig: 1200 }, { cat: 1, vis: 5000, cig: 1500 }, { cat: 2, vis: 6000, cig: 2000 }]
   };
-  const VFR_NAME = { day: 'VFR DAY', night: 'VFR NIGHT' };
+  const VFR_NAME = { day: 'VFR DAY', police: 'VFR NIGHT POLICE', mpt: 'VFR NIGHT MPT' };
   const VFR_BAND = ['RED', 'AMBER', 'YELLOW', 'GREEN'];
   // limiting = the element(s) that set the colour (below that colour's limit); only these are named and coloured.
   function vfrClass(vis, cig, rules) {
@@ -1116,7 +1128,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.23';
+  const VERSION = '1.24';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed', mode: 'taft.mode', route: 'taft.route', ref: 'taft.ref', arr: 'taft.arr', rules: 'taft.rules' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -1146,8 +1158,10 @@ details.fold>*:not(summary){margin-bottom:10px}
   // How the list was arranged: { order: 'ns' | 'dist' | 'mine', dist: {ICAO: nm}, ref: 'your position' | ICAO }. null = the order the mode or group gave it.
   let arr = load(LS.arr, null);
   if (arr && (typeof arr !== 'object' || !['ns', 'dist', 'mine'].includes(arr.order))) arr = null;
-  // IFR (approach minima and alternates), VFR DAY or VFR NIGHT (visibility and ceiling only). Saved on this device.
-  let rules = load(LS.rules, 'ifr'); if (!['ifr', 'day', 'night'].includes(rules)) rules = 'ifr';
+  // IFR (approach minima and alternates), VFR DAY, VFR NIGHT POLICE or VFR NIGHT MPT (visibility and ceiling only). Saved on this device.
+  // The single VFR NIGHT of v1.23 becomes the stricter of the two, Police.
+  const RULE_KEYS = ['ifr', 'day', 'police', 'mpt'];
+  let rules = load(LS.rules, 'ifr'); if (rules === 'night') rules = 'police'; if (!RULE_KEYS.includes(rules)) rules = 'ifr';
   let collapsed = load(LS.col, {});          // { ICAO: true } cards the user has collapsed, remembered on this device
   if (!collapsed || typeof collapsed !== 'object' || Array.isArray(collapsed)) collapsed = {};
   let groups = load(LS.groups, []);          // [{ n: 'Los HFT', ids: ['ENHF', ...] }] named by the user, this device only
@@ -1966,8 +1980,8 @@ details.fold>*:not(summary){margin-bottom:10px}
       const d = dispState(m, dispTime(m)), vf = verdictFor(m);
       const bg = vf && vf.cat != null && vf.cat >= 0 ? COLORS[vf.cat] : null;
       const ab = refT(m) != null && m.gridAuto && !m.iso && !m.off ? C.altBelowAt(selGrid(m), gridIndex(m, refT(m))) : null;
-      return wrapRow(id, '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + tag(id) + '</span><span class="sap">' + (m.vfr ? esc(vfrWhy(m)) : esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '')) + '</span>' +
-        '<span class="sright"><span class="sbd' + (bg ? '' : ' none') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + esc(vf ? vf.text : '') + '</span>' +
+      return wrapRow(id, '<button class="srow" data-goto="' + id + '"><span class="sic">' + id + tag(id) + '</span><span class="sap' + (m.vfr ? ' vfrwhy' : '') + '">' + (m.vfr ? esc(vfrWhy(m)) : esc(d.ap.l) + (d.ap.custom ? WARN : '') + (m.msa == null ? '<span class="nomsa">NO MSA</span>' : '')) + '</span>' +
+        '<span class="sright"><span class="sbd' + (bg ? '' : ' none') + '"' + (bg ? ' style="background:' + bg + '"' : '') + '>' + esc(vf ? (m.vfr ? vf.text.replace(/^VFR (?=NIGHT)/, '') : vf.text) : '') + '</span>' +      // the switch above already says VFR, so the night badges drop it here
         (ab ? '<span class="saltag">BELOW ALTN MINIMA</span>' : '') + '</span>' + (m.gridAuto ? '<canvas class="sline" data-sid="' + id + '"></canvas>' : '') + '</button>');
     }).join('');
     el.querySelectorAll('canvas.sline').forEach(cv => drawSline(cv, model[cv.dataset.sid]));
@@ -1978,7 +1992,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     if (refT(m) == null || !m.gridAuto) return '';
     const vs = ensureVerdicts(m), v = vs[gridIndex(m, refT(m))];
     if (!v || v.cat < 0) return '';
-    return v.cat === 3 ? 'clear' : String(v.cause && v.cause.factor || '').replace(/ \([^)]*\)/g, '');
+    return v.cat === 3 ? 'clear' : String(v.cause && v.cause.factor || '').replace(/ \([^)]*\)/g, '').replace(/visibility /g, 'vis ').replace(/; /g, ' · ');
   }
   // Hour labels for the summary strips (wide screens). Same local-time ticks as the cards: every 3 h, the date at midnight.
   function renderSumAxis() {
@@ -2489,15 +2503,12 @@ details.fold>*:not(summary){margin-bottom:10px}
   }
   function goBack() { if (history.state && history.state.v) { try { history.back(); return; } catch (e) { /* fall through */ } } showView('main'); }
   window.addEventListener('popstate', e => { const v = e.state && e.state.v ? e.state.v : 'main'; if (v !== ui.view) showView(v, false); });
-  // IFR / VFR DAY / VFR NIGHT
-  const ADVISORY_IFR = 'Advisory only. Colours use ceiling, visibility and tailwind only. RVR reports, METAR trends, thunderstorms, icing and shear are not modelled. Always verify against the official forecast, AIP and OM.';
-  const ADVISORY_VFR = 'Advisory only. VFR colours use visibility and ceiling only; either one below a limit sets the colour. Wind, approach minima, RVR and alternates are not considered, and neither are thunderstorms, icing and shear. Always verify against the official forecast and OM.';
+  // IFR / VFR DAY / VFR NIGHT POLICE / VFR NIGHT MPT
   function renderRulesSw() {
     document.querySelectorAll('#rulesSw [data-rules]').forEach(b => { const on = b.dataset.rules === rules; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
-    const adv = $('advisory'); if (adv) adv.textContent = rules === 'ifr' ? ADVISORY_IFR : ADVISORY_VFR;
   }
   function setRules(r) {
-    if (!['ifr', 'day', 'night'].includes(r) || r === rules) return;
+    if (!RULE_KEYS.includes(r) || r === rules) return;
     rules = r; save(LS.rules, rules);
     ui.menu = null; ui.edit = null; ui.draft = null;
     renderRulesSw(); render();
@@ -2505,6 +2516,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   $('rulesSw').addEventListener('click', e => { const b = e.target.closest('[data-rules]'); if (b) setRules(b.dataset.rules); });
   renderRulesSw();
   $('setBtn').addEventListener('click', () => showView('settings', true));
+  $('advLink').addEventListener('click', e => { e.preventDefault(); showView('settings', true); });
   $('setBack').addEventListener('click', goBack);
   $('editBtn').addEventListener('click', () => showView('edit', true));
   $('editDone').addEventListener('click', goBack);
@@ -2745,7 +2757,7 @@ details.fold>*:not(summary){margin-bottom:10px}
       r('Usable as alternate', 'RVR + 400 m and ceiling DH + 200 ft.') +
       r('Tailwind', 'max ' + cfg.maxTw + ' kt, gusts count.') +
       r('Approach', 'the runway with the most headwind, then the lowest minima.') +
-      ['day', 'night'].map(k => { const b = C.VFR_LIMITS[k]; return r(C.VFR_NAME[k], 'red below ' + b[0].vis + ' m or ' + b[0].cig + ' ft, amber below ' + b[1].vis + ' m or ' + b[1].cig + ' ft, yellow below ' + b[2].vis + ' m or ' + b[2].cig + ' ft, green above. Either value triggers the colour. Wind, approach and alternates are not used.'); }).join('');
+      ['day', 'police', 'mpt'].map(k => { const b = C.VFR_LIMITS[k]; return r(C.VFR_NAME[k], 'red below ' + b[0].vis + ' m or ' + b[0].cig + ' ft, amber below ' + b[1].vis + ' m or ' + b[1].cig + ' ft, yellow below ' + b[2].vis + ' m or ' + b[2].cig + ' ft, green above. Either value triggers the colour. Wind, approach and alternates are not used.'); }).join('');
   }
 
   /* ---------- add / settings ---------- */
