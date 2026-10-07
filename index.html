@@ -444,7 +444,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     </div>
   </div>
 
-  <div class="version">TAF Timeline v1.24</div>
+  <div class="version">TAF Timeline v1.25</div>
 </div>
 
 <div class="wrap" id="editView" hidden>
@@ -1128,7 +1128,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   let dataMissing = false, dataSchemaBad = false;
   if (typeof AERO_DATA === 'undefined') { window.AERO_DATA = { schema: 1, airac: 'none', airacMs: 0, ap: {} }; dataMissing = true; }
   else if (AERO_DATA.schema !== 1) dataSchemaBad = true;
-  const VERSION = '1.24';
+  const VERSION = '1.25';
   const LS = { list: 'taft.list', data: 'taft.data', cfg: 'taft.minima', stations: 'taft.stationlist', custom: 'taft.custom', msa: 'taft.msa', off: 'taft.offshore', groups: 'taft.groups', col: 'taft.collapsed', mode: 'taft.mode', route: 'taft.route', ref: 'taft.ref', arr: 'taft.arr', rules: 'taft.rules' };
   const COLORS = { '-1': '#2a3140', 0: '#e5484d', 1: '#e8a020', 2: '#9cc53a', 3: '#3fb950' };
   const H = 3600e3, M = 60e3;
@@ -1252,7 +1252,19 @@ details.fold>*:not(summary){margin-bottom:10px}
     $('fHint').textContent = flight.set.size >= 3 ? 'Linked: moving departure or ETA keeps the flight time.'
       : flight.set.size === 0 ? 'Set any two. The third is calculated.' : 'Set one more value.';
   }
+  // The line you tap on a strip and the TAF line you mark are temporary. They go when the flight times change, on a tap
+  // outside the strip and the TAF lines, with Escape, and when you mark something on another card.
+  const hasMarks = () => Object.keys(inspect).length > 0 || Object.keys(picked).length > 0;
+  function clearMarks(exceptId) {
+    const ids = new Set(Object.keys(inspect).concat(Object.keys(picked)));
+    for (const id of ids) { if (id === exceptId) continue; delete inspect[id]; delete picked[id]; updateCardDynamic(id); }
+  }
+  document.addEventListener('click', e => {
+    if (!hasMarks() || e.target.closest('.tl, .pill[data-act=pick]')) return;      // the strips and the TAF lines manage their own marks
+    clearMarks();
+  });
   function onSlider(which) {
+    clearMarks();
     const base = baseNow();
     const v = +$({ dep: 'sDep', ft: 'sFt', eta: 'sEta' }[which]).value;
     const linked = flight.set.size >= 3;
@@ -1283,7 +1295,7 @@ details.fold>*:not(summary){margin-bottom:10px}
     drawAll();
   }
   ['dep', 'ft', 'eta'].forEach(w => $({ dep: 'sDep', ft: 'sFt', eta: 'sEta' }[w]).addEventListener('input', () => onSlider(w)));
-  $('fReset').addEventListener('click', () => { flight.dep = flight.ft = flight.eta = null; flight.set = new Set(); syncFlight(); drawAll(); });
+  $('fReset').addEventListener('click', () => { clearMarks(); flight.dep = flight.ft = flight.eta = null; flight.set = new Set(); syncFlight(); drawAll(); });
 
   /* ---------- data ---------- */
   // Automatic refresh, fixed (not a setting): when the app is opened or comes back to the front and the data is more
@@ -1955,6 +1967,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   function applyTip(d) {
     const base = baseNow();
     if (flight.dep == null || flight.dep + d * M < base) return;
+    clearMarks();
     flight.dep += d * M; flight.eta += d * M;
     syncFlight(); drawAll();
   }
@@ -2191,6 +2204,7 @@ details.fold>*:not(summary){margin-bottom:10px}
         const pick = ev => {
           const r = cv.getBoundingClientRect();
           const px = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left;
+          clearMarks(id);
           inspect[id] = axis.start + Math.max(0, Math.min(1, px / r.width)) * (axis.end - axis.start);
           delete picked[id];
           updateCardDynamic(id);
@@ -2227,6 +2241,7 @@ details.fold>*:not(summary){margin-bottom:10px}
       case 'pick': {                                              // tap a TAF line: mark its period on the strips; tap it again to clear
         const pill = t.closest('.pill'), m = model[id]; if (!pill || !m || !m.taf) break;
         const gi = +pill.dataset.gi, pk = picked[id];
+        clearMarks(id);
         if (pk && pk.gi === gi && pk.key === m.taf.raw) delete picked[id]; else picked[id] = { gi, key: m.taf.raw };
         updateCardDynamic(id); draw(id); break;
       }
@@ -2282,6 +2297,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && ui.menu) { const prev = ui.menu; ui.menu = null; updateCardDynamic(prev); }
     else if (e.key === 'Escape' && ui.modal) closeModal();
+    else if (e.key === 'Escape' && hasMarks()) clearMarks();
     else if (e.key === 'Escape' && ui.view !== 'main' && !drag) showView('main');
   });
 
@@ -2814,7 +2830,7 @@ details.fold>*:not(summary){margin-bottom:10px}
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncFlight(); renderAge(); drawAll(); autoCheck(true); } });
 
   $('tz').textContent = tzLabel(); fillCfg(); renderLegend(); syncFlight(); buildIndex(); render(); loadStationList(); autoCheck(true);
-  window.__taf = { model, flight, onSlider, pin, ui, disc, get rules() { return rules; }, setRules, arrangeNorthSouth, arrangeByDistance, get arr() { return arr; }, get mode() { return mode; }, get coords() { return coords; }, openModal, applyRoute, applyClosest, get collapsed() { return collapsed; }, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
+  window.__taf = { model, flight, onSlider, pin, ui, disc, inspect, picked, get rules() { return rules; }, setRules, arrangeNorthSouth, arrangeByDistance, get arr() { return arr; }, get mode() { return mode; }, get coords() { return coords; }, openModal, applyRoute, applyClosest, get collapsed() { return collapsed; }, get axis() { return axis; }, get groups() { return groups; }, get custom() { return custom; }, get msa() { return msa; }, get offshore() { return offshore; } }; // for debugging
 })();
 
 </script>
